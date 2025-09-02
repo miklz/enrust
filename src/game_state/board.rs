@@ -80,10 +80,68 @@ impl Piece {
     }
 }
 
+#[derive(Clone)]
 pub struct Move {
     pub from        : i16,
     pub to          : i16,
 //    promotion   : Option<Piece>,
+}
+
+impl Move {
+    /* Convert <rank><file> to 8x8 square */
+    fn notation_to_square(square_notation: &str) -> Option<i16> {
+        if square_notation.len() != 2 {
+            return None;
+        }
+
+        let file = square_notation.chars().nth(0).unwrap();
+        let rank = square_notation.chars().nth(1).unwrap();
+
+        if !('a'..='h').contains(&file) || !('1'..='8').contains(&rank) {
+            return None;
+        }
+
+        let file_idx = (file as u8 - b'a') as i16; // a=0, b=1, ...
+        let rank_idx = (rank as u8 - b'1') as i16; // 1=0, 2=1, ...
+
+        Some(rank_idx * 8 + file_idx)
+    }
+
+    /* Convert uci algebraic notation format:
+     * <from square><to square>[<promoted to>]
+     * to Move struct 
+     */
+    fn parse_algebraic_move(uci_notation: &str) -> Option<Move> {
+
+        if uci_notation.len() < 4 {
+            return None;
+        }
+
+        let from = Self::notation_to_square(&uci_notation[0..2])?;
+        let to = Self::notation_to_square(&uci_notation[2..4])?;
+
+        /*
+        let promotion = if uci_notation.len() == 5 {
+            match &uci_notation[4..5] {
+                "q" => Some(Piece::WhiteQueen),  // Or handle based on side to move
+                "r" => Some(Piece::WhiteRook),
+                "n" => Some(Piece::WhiteKnight),
+                "b" => Some(Piece::WhiteBishop),
+                _   => None,
+            }
+        } else {
+            None
+        };
+        
+        Some(Move { from, to, promotion })
+        */
+
+        Some(Move { from, to })
+    }
+
+    pub fn from_uci(uci_notation: &str) -> Option<Move> {
+        Self::parse_algebraic_move(uci_notation)
+    }
 }
 
 pub struct ChessBoard {

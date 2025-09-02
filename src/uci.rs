@@ -1,11 +1,113 @@
+use std::str::SplitWhitespace;
+
 use crate::game_state::GameState;
+use crate::game_state::SearchConfiguration;
+use crate::game_state::Move;
 
 use std::io::{self, Write};
 
-fn uci_cmd_protocol() {
+fn handle_uci_command() {
     println!("id name EnRust");
     println!("id author Mikael Ferraz Aldebrand");
     println!("uciok");
+}
+
+fn handle_go_command(game_state: &mut GameState, tokens: &mut SplitWhitespace) {
+    let mut sc = SearchConfiguration::new();
+    while let Some(token) = tokens.next() {
+        match token {
+            "wtime" =>  {
+                if let Some(wtime_str) = tokens.next() {
+                    if let Ok(wtime) = wtime_str.parse::<u64>() {
+                        sc.wtime = Some(wtime);
+                    }
+                }
+            }
+            "btime" => {
+                if let Some(btime_str) = tokens.next() {
+                    if let Ok(btime) = btime_str.parse::<u64>() {
+                        sc.btime = Some(btime);
+                    }
+                }
+            }
+            "winc"  => {
+                if let Some(winc_str) = tokens.next() {
+                    if let Ok(winc) = winc_str.parse::<u64>() {
+                        sc.winc = Some(winc);
+                    }
+                }
+            }
+            "binc"  => {
+                if let Some(binc_str) = tokens.next() {
+                    if let Ok(binc) = binc_str.parse::<u64>() {
+                        sc.binc = Some(binc);
+                    }
+                }
+            }
+            "movestogo" => {
+                if let Some(movestogo_str) = tokens.next() {
+                    if let Ok(movestogo) = movestogo_str.parse::<u64>() {
+                        sc.movestogo = Some(movestogo);
+                    }
+                }
+            }
+            "depth" => {
+                if let Some(depth_str) = tokens.next() {
+                    if let Ok(depth) = depth_str.parse::<u64>() {
+                        sc.depth = Some(depth);
+                    }
+                }
+            }
+            "nodes" => {
+                if let Some(nodes_str) = tokens.next() {
+                    if let Ok(nodes) = nodes_str.parse::<u64>() {
+                        sc.nodes = Some(nodes);
+                    }
+                }
+            }
+            "movetime" => {
+                if let Some(movetime_str) = tokens.next() {
+                    if let Ok(movetime) = movetime_str.parse::<u64>() {
+                        sc.movetime = Some(movetime);
+                    }
+                }
+            }
+            "infinite" => sc.infinite = true,
+
+            "searchmoves" => {
+                let mut moves = Vec::new();
+                while let Some(mv) = tokens.clone().next() {
+                    if let Some(parsed) = Move::from_uci(mv) {
+                        moves.push(parsed);
+                        tokens.next(); // advance
+                    } else {
+                        break; // stop at non-move token
+                    }
+                }
+                sc.searchmoves = Some(moves);
+            }
+
+            "ponder" => {
+                sc.ponder = true;
+            }
+
+            "mate" => {
+                if let Some(n) = tokens.next().and_then(|t| t.parse::<u32>().ok()) {
+                    sc.mate = Some(n);
+                }
+            }
+
+            _ => {}
+        }
+    }
+    
+    game_state.set_time_control(&sc);
+
+    if let Some(bestmove) = game_state.search() {
+        println!("bestmove {}", bestmove);
+    } else {
+        println!("bestmove 0000");
+    }
 }
 
 pub fn uci_main() {
@@ -25,7 +127,7 @@ pub fn uci_main() {
         if let Some(keyword) = uci_cmd.next() {
             match keyword {
                 "uci" => {
-                    uci_cmd_protocol();
+                    handle_uci_command();
                 }
                 "isready" => {
                     println!("readyok");
@@ -65,12 +167,7 @@ pub fn uci_main() {
                     }
                 }
                 "go" => {
-                    // "go depth 10", "go movetime 1000", etc.
-                    let args: Vec<&str> = uci_cmd.collect();
-                    // for now, just a placeholder
-                    println!("info string Go called with args: {:?}", args);
-                    // for every "go" command a "bestmove" command is needed
-                    // println!("bestmove e2e4");
+                    handle_go_command(&mut game_state, &mut uci_cmd);
                 }
                 _ => {
                     // For now, ignore unimplemented commands

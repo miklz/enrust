@@ -4,10 +4,67 @@ pub use crate::game_state::board::Color;
 pub use crate::game_state::board::Move;
 pub use crate::game_state::board::Piece;
 
+#[derive(Clone)]
+pub struct SearchConfiguration {
+    pub wtime: Option<u64>,     // White time in milliseconds
+    pub btime: Option<u64>,     // Black time in milliseconds
+    pub winc: Option<u64>,      // White increment per move
+    pub binc: Option<u64>,      // Black increment per move
+    pub movestogo: Option<u64>, // Moves until next time control
+    pub movetime: Option<u64>,  // Time limit for this move
+    pub depth: Option<u64>,     // Search depth limit
+    pub nodes: Option<u64>,     // Node count limit
+    pub infinite: bool,         // Search until "stop" command
+    pub searchmoves: Option<Vec<Move>>,
+    pub ponder: bool,
+    pub mate: Option<u32>,
+}
+
+impl SearchConfiguration {
+    pub fn new() -> Self {
+        SearchConfiguration {
+            wtime: None,
+            btime: None,
+            winc: None,
+            binc: None,
+            movestogo: None,
+            movetime: None,
+            depth: None,
+            nodes: None,
+            infinite: false,
+            searchmoves: None,
+            ponder: false,
+            mate: None,
+        }
+    }
+
+    // Helper to calculate time allocation for current side to move
+    pub fn time_for_move(&self, side_to_move: Color) -> Option<u64> {
+        if self.infinite {
+            return None;
+        }
+        
+        if let Some(movetime) = self.movetime {
+            return Some(movetime);
+        }
+        
+        let (time_left, increment) = match side_to_move {
+            Color::White => (self.wtime?, self.winc.unwrap_or(0)),
+            Color::Black => (self.btime?, self.binc.unwrap_or(0)),
+        };
+        
+        // Simple time management: use time_left / movestogo or a fraction
+        let moves_to_go = self.movestogo.unwrap_or(20) as f64;
+        let allocated_time = (time_left as f64 / moves_to_go).min(time_left as f64 * 0.9) as u64;
+        
+        Some(allocated_time + increment)
+    }
+}
 
 pub struct GameState {
     ply_moves       : u64,
     side_to_move    : Color,
+    search_control  : Option<SearchConfiguration>,
 
     // position 0: White king side castle rights
     // position 1: White queen side castle rights
@@ -22,6 +79,10 @@ impl GameState {
     pub fn start_position(&mut self) {
         let fen_start_pos = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         self.set_fen_position(fen_start_pos);
+    }
+
+    pub fn set_time_control(&mut self, sc: &SearchConfiguration) {
+        self.search_control = Some(sc.clone());
     }
 
     pub fn set_fen_position(&mut self, fen_str: &str) -> bool {
@@ -157,61 +218,20 @@ impl GameState {
         return true;
     }
 
-    /* Convert <rank><file> to 8x8 square */
-    fn notation_to_square(square_notation: &str) -> Option<i16> {
-        if square_notation.len() != 2 {
-            return None;
-        }
-
-        let file = square_notation.chars().nth(0).unwrap();
-        let rank = square_notation.chars().nth(1).unwrap();
-
-        if !('a'..='h').contains(&file) || !('1'..='8').contains(&rank) {
-            return None;
-        }
-
-        let file_idx = (file as u8 - b'a') as i16; // a=0, b=1, ...
-        let rank_idx = (rank as u8 - b'1') as i16; // 1=0, 2=1, ...
-
-        Some(rank_idx * 8 + file_idx)
-    }
-
-    /* Convertuci ucialgebraic notation format:
-     * <from square><to square>[<promoted to>]
-     * to board move
-     */
-    fn parse_algebraic_move(uci_notation: &str) -> Option<Move> {
-
-        if uci_notation.len() < 4 {
-            return None;
-        }
-
-        let from = Self::notation_to_square(&uci_notation[0..2])?;
-        let to = Self::notation_to_square(&uci_notation[2..4])?;
-
-        /*
-        let promotion = if uci_notation.len() == 5 {
-            match &uci_notation[4..5] {
-                "q" => Some(Piece::WhiteQueen),  // Or handle based on side to move
-                "r" => Some(Piece::WhiteRook),
-                "n" => Some(Piece::WhiteKnight),
-                "b" => Some(Piece::WhiteBishop),
-                _   => None,
-            }
-        } else {
-            None
-        };
-        
-        Some(Move { from, to, promotion })
-        */
-
-        Some(Move { from, to })
-    }
-
     pub fn make_move(&mut self, algebraic_notation: &str) {
-        if let Some(play) = Self::parse_algebraic_move(algebraic_notation) {
+        if let Some(play) = Move::from_uci(algebraic_notation) {
             self.board.make_move(play);
         }
+    }
+
+    pub fn search(&self) -> Option<&str> {
+        // The pieces positions was already defined on the board and
+        // the time control was set with the time requirements
+        // needed to perform a search
+        //let sc = self.search_control.as_ref().expect("No time control set");
+
+        // Stub for now
+        Some("e2e4")
     }
 
     pub fn print_board(&self) {
@@ -224,6 +244,7 @@ impl Default for GameState {
         GameState {
             ply_moves: 0,
             side_to_move: Color::White,
+            search_control: None,
             castling_rights : (true, true, true, true),
             board: ChessBoard::default()
         }
