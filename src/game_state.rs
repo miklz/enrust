@@ -90,14 +90,18 @@ impl GameState {
         let mut fen = fen_str.split_whitespace();
 
         let mut board_8x8: [Piece; 64] = [Piece::EmptySquare; 64];
-        let mut board_idx = 0;
+        // In a FEN string the black position comes first, but how I think about a chess board,
+        // the white pieces start the lowest indexes a1 where the rook is positioned would be the
+        // first position (index 0). That's why here I start the index at the end to get the black
+        // pieces first, and decrement till we get to the white pieces.
+        let mut board_idx = 64;
 
         // The first word is the FEN position
         if let Some(fen_position) = fen.next() {
             for c in fen_position.chars() {
                 if let Some(num_of_empty_squares) = c.to_digit(10) {
                     for _i in 1..=num_of_empty_squares {
-                        board_idx += 1;
+                        board_idx -= 1;
                     }
 
                     continue;
@@ -123,14 +127,14 @@ impl GameState {
                     },
                 };
 
+                board_idx -= 1;
                 board_8x8[board_idx] = piece;
-                board_idx += 1;
             }
         } else {
             return false;
         }
 
-        if board_idx != 64 {
+        if board_idx != 0 {
             println!("Invalid FEN string");
             return false;
         }

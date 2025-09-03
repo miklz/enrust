@@ -169,10 +169,13 @@ pub fn uci_main() {
                 "go" => {
                     handle_go_command(&mut game_state, &mut uci_cmd);
                 }
+                // This is not a uci command, is my way of printing the board
+                "print" => {
+                    game_state.print_board();
+                }
                 _ => {
                     // For now, ignore unimplemented commands
                     println!("info string Unhandled command: {}", cmd);
-                    game_state.print_board();
                 }
             }
         }

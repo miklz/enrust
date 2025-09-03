@@ -52,6 +52,25 @@ impl Piece {
         }
     }
 
+    fn print_piece(&self) -> &str {
+        match self {
+            Piece::EmptySquare => ".",
+            Piece::SentinelSquare => "X",
+            Piece::WhitePawn => "P",
+            Piece::WhiteRook => "R",
+            Piece::WhiteKnight => "N",
+            Piece::WhiteBishop => "B",
+            Piece::WhiteQueen => "Q",
+            Piece::WhiteKing => "K",
+            Piece::BlackPawn => "p",
+            Piece::BlackRook => "r",
+            Piece::BlackKnight => "n",
+            Piece::BlackBishop => "b",
+            Piece::BlackQueen => "q",
+            Piece::BlackKing => "k",
+        }
+    }
+
     fn is_empty(self) -> bool {
         self == Piece::EmptySquare
     }
@@ -157,28 +176,7 @@ pub struct ChessBoard {
 
 impl ChessBoard {
     fn get_piece_on_square(&self, square: i16) -> Piece {
-        // Our board has more than 64 squares, but the rest of our application
-        // should not have to deal with our board representation, therefore,
-        // we have to map the inner board to our complete board with the
-        // sentinal squares.
-
-        // The offset for the inner board is equal to the number of squares
-        // up to the a1 square.
-        // 
-        // For a board with 10 files and 12 ranks:
-        // 1  . ♜ x x x x x x x .  1
-        // 0  . . . . . . . . . .  0
-        //-1  . . . . . . . . . . -1
-        //    Z A B C D E F G H I
-        //
-        // That would add up to 21 = 10 + 10 + 1.
-        // The 2 times '10' is easy to see, the '1' commes from the difference of the
-        // whole board width (10) minus the inner board width (8)...
-        // divided by 2 (since we have two sentinel columns in each side of the board).
-        let board_offset = 2 * self.board_width + (self.board_width - 8) / 2;
-        let real_square = square + board_offset; 
-        
-        self.board_squares[real_square as usize]
+        self.board_squares[self.map_inner_to_board(square)]
     }
 
     fn are_on_the_same_rank(&self, square1: i16, square2: i16) -> bool {
@@ -260,33 +258,62 @@ impl ChessBoard {
         chess_square % self.board_width + 1
     }
 
-    fn map_inner_to_board(square: i16) -> usize {
-        // Here we map each of the squares in the 8x8 board
-        // to the indexes in the 12x10
-        let map : [usize; 64] = [
-            21, 22, 23, 24, 25, 26, 27, 28,
-            31, 32, 33, 34, 35, 36, 37, 38,
-            41, 42, 43, 44, 45, 46, 47, 48,
-            51, 52, 53, 54, 55, 56, 57, 58,
-            61, 62, 63, 64, 65, 66, 67, 68,
-            71, 72, 73, 74, 75, 76, 77, 78,
-            81, 82, 83, 84, 85, 86, 87, 88,
-            91, 92, 93, 94, 95, 96, 97, 98
-        ];
+    fn is_light_square_8x8(square: i16) -> bool {
+        let rank = square / 8;
+        let file = square % 8;
 
-        map[square as usize]
+        (rank + file) % 2 != 0
+    }
+
+    fn is_dark_square_8x8(square: i16) -> bool {
+        !Self::is_light_square_8x8(square)
+    }
+
+    fn is_light_square(&self, square: i16) -> bool {
+        let rank = self.square_rank(square);
+        let file = self.square_file(square);
+
+        (rank + file) % 2 != 0
+    }
+
+    fn is_dark_square(&self, square: i16) -> bool {
+        !self.is_light_square(square)
+    }
+
+    fn map_inner_to_board(&self, square: i16) -> usize {
+        // We have a larger board with sentinel squares around the edges.
+        // This function converts a standard 0-63 chess square to its position
+        // in our internal board representation.
+        
+        // Calculate the starting position of the inner 8×8 board within our larger board
+        let vertical_padding = self.board_height - 8 / 2;     // Rows above the chess board
+        let horizontal_padding = (self.board_width - 8) / 2;  // Columns to the left
+        
+        let board_offset = vertical_padding * self.board_width + horizontal_padding;
+        
+        // Convert standard chess coordinates to internal board coordinates
+        let chess_rank = self.square_rank(square);  // 1-8 (a1-h1 is rank 1)
+        let chess_file = self.square_file(square);  // 1-8 (a-file is 1, h-file is 8)
+        
+        // Internal position = (rows above) + (chess rank) × (board width) + (columns left) + (chess file)
+        let internal_square = self.board_width * (chess_rank - 1) + (chess_file - 1) + board_offset;
+        
+        internal_square as usize
     }
 
     /* We expect an 8x8 array of pieces*/
     pub fn set_board(&mut self, board_position : &[Piece; 64]) {
         let width = self.board_width as usize;
         let mut index_8x8 = 0;
-        for rank in (2..10).rev() { // rows 2..9 are the 8 playable ranks
+        for rank in 2..10 { // rows 2..9 are the 8 playable ranks
             for file in 1..9 { // columns 1 to 8 are playable
                 self.board_squares[width*rank + file] = board_position[index_8x8];
                 index_8x8 += 1;
             }
         }
+
+        // When the board is set all at once we have to update the piece-lists
+        self.piece_list.update_lists(board_position);
     }
 
     pub fn set_en_passant_square(&mut self, square: i16) {
@@ -295,7 +322,7 @@ impl ChessBoard {
     }
 
     pub fn make_move(&mut self, play: Move) {
-        let from_index = Self::map_inner_to_board(play.from);
+        let from_index = self.map_inner_to_board(play.from);
         let piece = self.board_squares[from_index];
         self.board_squares[from_index] = Piece::EmptySquare;
         /* Let's think how we will handle promotion
@@ -305,40 +332,41 @@ impl ChessBoard {
             self.board_squares[play.to] = piece;
         }
         */
-        let to_index = Self::map_inner_to_board(play.to);
+        let to_index = self.map_inner_to_board(play.to);
         self.board_squares[to_index] = piece;
     }
 
     pub fn print_board(&self) {
+        println!("\n12x10 Chess Board:");
+        println!("==============================");
         // Loop over actual board ranks (10 down to 3 in mailbox indexing)
-        for rank in (2..10).rev() { // rows 2..9 are the 8 playable ranks
-            print!("{} ", rank - 1); // Print rank number (1–8)
+        for rank in (0..12).rev() {
+            print!("{:02} │ ", rank - 1);
 
-            for file in 1..9 { // columns 1 to 8 are playable
+            for file in 0..10 {
                 let idx = (rank * self.board_width + file) as usize;
-                let symbol = match self.board_squares[idx] {
-                    Piece::EmptySquare => ".",
-                    Piece::SentinelSquare => "X", // shouldn’t appear inside board
-                    Piece::WhitePawn => "P",
-                    Piece::WhiteRook => "R",
-                    Piece::WhiteKnight => "N",
-                    Piece::WhiteBishop => "B",
-                    Piece::WhiteQueen => "Q",
-                    Piece::WhiteKing => "K",
-                    Piece::BlackPawn => "p",
-                    Piece::BlackRook => "r",
-                    Piece::BlackKnight => "n",
-                    Piece::BlackBishop => "b",
-                    Piece::BlackQueen => "q",
-                    Piece::BlackKing => "k",
-                };
-                print!("{} ", symbol);
+                let piece = self.board_squares[idx];
+
+                print!("{} ", piece.print_piece());
             }
-            println!();
+            println!("│");
         }
 
         // Print file letters
-        println!("  a b c d e f g h");
+        
+        println!("   └─────────────────────");
+        println!("     z a b c d e f g h i");
+
+        self.piece_list.debug_print();
+    }
+
+    pub fn debug_print(&self) {
+        for (square, piece) in self.board_squares.iter().enumerate() {
+            print!("{}:{}  ", square, piece.print_piece());
+            if square % 10 == 0 {
+                println!("");
+            }
+        }
     }
 
     /*

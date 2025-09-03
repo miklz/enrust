@@ -249,41 +249,55 @@ impl PieceList {
         moves
     }
 
-    pub fn init(&mut self) {
-        self.white_king_list.push(25);
+    pub fn update_lists(&mut self, board_position : &[Piece; 64]) {
+        // The board is our reference, so we can clear all of our lists
+        // and set the values from the board to the list
+        self.white_pawn_list.clear();
+        self.white_rook_list.clear();
+        self.white_knight_list.clear();
+        self.white_light_bishop_list.clear();
+        self.white_dark_bishop_list.clear();
+        self.white_queen_list.clear();
+        self.white_king_list.clear();
 
-        self.white_queen_list.push(24);
+        self.black_pawn_list.clear();
+        self.black_rook_list.clear();
+        self.black_knight_list.clear();
+        self.black_light_bishop_list.clear();
+        self.black_dark_bishop_list.clear();
+        self.black_queen_list.clear();
+        self.black_king_list.clear();
 
-        self.white_rook_list.push(21);
-        self.white_rook_list.push(28);
-
-        self.white_light_bishop_list.push(26);
-
-        self.white_light_bishop_list.push(23);
-
-        self.white_knight_list.push(22);
-        self.white_knight_list.push(27);
-
-        for white_pawn_square in 31..=38 {
-            self.white_pawn_list.push(white_pawn_square);
-        }
-
-        self.black_king_list.push(95);
-
-        self.black_queen_list.push(94);
-
-        self.black_rook_list.push(91);
-        self.black_rook_list.push(98);
-        
-        self.black_light_bishop_list.push(93);
-
-        self.black_light_bishop_list.push(96);
-
-        self.black_knight_list.push(92);
-        self.black_knight_list.push(97);
-
-        for black_pawn_square in 81..=88 {
-            self.black_pawn_list.push(black_pawn_square);
+        for (square, piece) in board_position.iter().enumerate() {
+            // Enumerate returns usize but our squares are i16
+            let i16_square = square as i16;
+            match piece {
+                Piece::WhitePawn    => self.white_pawn_list.push(i16_square),
+                Piece::WhiteRook    => self.white_rook_list.push(i16_square),
+                Piece::WhiteKnight  => self.white_knight_list.push(i16_square),
+                Piece::WhiteBishop  => {
+                    if ChessBoard::is_light_square_8x8(i16_square) {
+                        self.white_light_bishop_list.push(i16_square)
+                    } else {
+                        self.white_dark_bishop_list.push(i16_square)
+                    }
+                },
+                Piece::WhiteQueen   => self.white_queen_list.push(i16_square),
+                Piece::WhiteKing    => self.white_king_list.push(i16_square),
+                Piece::BlackPawn    => self.black_pawn_list.push(i16_square),
+                Piece::BlackRook    => self.black_rook_list.push(i16_square),
+                Piece::BlackKnight  => self.black_knight_list.push(i16_square),
+                Piece::BlackBishop  => {
+                    if ChessBoard::is_light_square_8x8(i16_square) {
+                        self.black_light_bishop_list.push(i16_square)
+                    } else {
+                        self.black_dark_bishop_list.push(i16_square)
+                    }
+                },
+                Piece::BlackQueen   => self.black_queen_list.push(i16_square),
+                Piece::BlackKing    => self.black_king_list.push(i16_square),
+                _ => {}
+            }
         }
     }
 
@@ -294,13 +308,25 @@ impl PieceList {
             Piece::WhitePawn    => &mut self.white_pawn_list,
             Piece::WhiteRook    => &mut self.white_rook_list,
             Piece::WhiteKnight  => &mut self.white_knight_list,
-            //Piece::WhiteBishop  => &mut self.white_bishop_list,
+            Piece::WhiteBishop  => {
+                    if chess_board.is_light_square(play.from) {
+                        &mut self.black_light_bishop_list
+                    } else {
+                        &mut self.black_dark_bishop_list
+                    }
+                },
             Piece::WhiteQueen   => &mut self.white_queen_list,
             Piece::WhiteKing    => &mut self.white_king_list,
             Piece::BlackPawn    => &mut self.black_pawn_list,
             Piece::BlackRook    => &mut self.black_rook_list,
             Piece::BlackKnight  => &mut self.black_knight_list,
-            //Piece::BlackBishop  => &mut self.black_bishop_list,
+            Piece::BlackBishop  => {
+                    if chess_board.is_light_square(play.from) {
+                        &mut self.black_light_bishop_list
+                    } else {
+                        &mut self.black_dark_bishop_list
+                    }
+                },
             Piece::BlackQueen   => &mut self.black_queen_list,
             Piece::BlackKing    => &mut self.black_king_list,
             _ => return,
@@ -317,6 +343,82 @@ impl PieceList {
             piece_list[index] = play.to;
         }
         */
+    }
+
+    pub fn print_board(&self) {
+        // Create an empty 8x8 board
+        let mut board = vec!['.'; 64];
+
+        // Helper function to place pieces
+        fn place_pieces(board: &mut Vec<char>, pieces: &Vec<i16>, symbol: char) {
+            for &square in pieces {
+                if square < 64 {
+                    board[square as usize] = symbol;
+                }
+            }
+        }
+        
+        // Place pieces
+        place_pieces(&mut board, &self.white_king_list, 'K');
+        place_pieces(&mut board, &self.white_queen_list, 'Q');
+        place_pieces(&mut board, &self.white_rook_list, 'R');
+        place_pieces(&mut board, &self.white_light_bishop_list, 'B');
+        place_pieces(&mut board, &self.white_dark_bishop_list, 'B');
+        place_pieces(&mut board, &self.white_knight_list, 'N');
+        place_pieces(&mut board, &self.white_pawn_list, 'P');
+        
+        place_pieces(&mut board, &self.black_king_list, 'k');
+        place_pieces(&mut board, &self.black_queen_list, 'q');
+        place_pieces(&mut board, &self.black_rook_list, 'r');
+        place_pieces(&mut board, &self.black_light_bishop_list, 'b');
+        place_pieces(&mut board, &self.black_dark_bishop_list, 'b');
+        place_pieces(&mut board, &self.black_knight_list, 'n');
+        place_pieces(&mut board, &self.black_pawn_list, 'p');
+        
+        // Print the standard chess board
+        println!("\nStandard Chess Board (from Piece Lists):");
+        println!("========================================");
+        
+        for rank in (0..8).rev() {
+            print!("{} │ ", rank + 1);
+            for file in 0..8 {
+                let index = rank * 8 + file;
+                print!("{} ", board[index]);
+            }
+            println!("│");
+        }
+        
+        println!("  └─────────────────");
+        println!("    a b c d e f g h");
+    }
+    
+    // Debug function to show all piece lists
+    pub fn debug_print(&self) {
+        println!("\nPiece List Contents:");
+        println!("========================================");
+        
+        fn print_list(name: &str, list: &Vec<i16>) {
+            let squares: Vec<String> = list.iter()
+                .map(|&sq| format!("{}", sq))
+                .collect();
+            println!("{:20}: {}", name, squares.join(" "));
+        }
+        
+        print_list("White Kings", &self.white_king_list);
+        print_list("White Queens", &self.white_queen_list);
+        print_list("White Rooks", &self.white_rook_list);
+        print_list("White Light Bishops", &self.white_light_bishop_list);
+        print_list("White Dark Bishops", &self.white_dark_bishop_list);
+        print_list("White Knights", &self.white_knight_list);
+        print_list("White Pawns", &self.white_pawn_list);
+        
+        print_list("Black Kings", &self.black_king_list);
+        print_list("Black Queens", &self.black_queen_list);
+        print_list("Black Rooks", &self.black_rook_list);
+        print_list("Black Light Bishops", &self.black_light_bishop_list);
+        print_list("Black Dark Bishops", &self.black_dark_bishop_list);
+        print_list("Black Knights", &self.black_knight_list);
+        print_list("Black Pawns", &self.black_pawn_list);
     }
 
     fn bishop_move(chess_board: &ChessBoard, from: i16, to: i16) -> bool {
