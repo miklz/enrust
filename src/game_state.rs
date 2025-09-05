@@ -90,52 +90,52 @@ impl GameState {
         let mut fen = fen_str.split_whitespace();
 
         let mut board_8x8: [Piece; 64] = [Piece::EmptySquare; 64];
-        // In a FEN string the black position comes first, but how I think about a chess board,
-        // the white pieces start the lowest indexes a1 where the rook is positioned would be the
-        // first position (index 0). That's why here I start the index at the end to get the black
-        // pieces first, and decrement till we get to the white pieces.
-        let mut board_idx = 64;
 
         // The first word is the FEN position
         if let Some(fen_position) = fen.next() {
-            for c in fen_position.chars() {
-                if let Some(num_of_empty_squares) = c.to_digit(10) {
-                    for _i in 1..=num_of_empty_squares {
-                        board_idx -= 1;
+            let rank_strings: Vec<&str> = fen_position.split('/').collect();
+            // FEN has 8 ranks, from rank 8 (black side) to rank 1 (white side)
+            for (rank_index, rank_str) in rank_strings.iter().enumerate() {
+                let mut file_index = 0;
+
+                for c in rank_str.chars() {
+                    if file_index >= 8 {
+                        break;
                     }
 
-                    continue;
+                    if let Some(num_of_empty_squares) = c.to_digit(10) {
+                        for _i in 1..=num_of_empty_squares {
+                            file_index += 1;
+                        }
+
+                        continue;
+                    }
+
+                    let piece = match c {
+                        'P' => Piece::WhitePawn,
+                        'R' => Piece::WhiteRook,
+                        'N' => Piece::WhiteKnight,
+                        'B' => Piece::WhiteBishop,
+                        'Q' => Piece::WhiteQueen,
+                        'K' => Piece::WhiteKing,
+                        'p' => Piece::BlackPawn,
+                        'r' => Piece::BlackRook,
+                        'n' => Piece::BlackKnight,
+                        'b' => Piece::BlackBishop,
+                        'q' => Piece::BlackQueen,
+                        'k' => Piece::BlackKing,
+                        _   => {
+                            println!("Invalid FEN character {}\n", c);
+                            return false
+                        },
+                    };
+
+                    let board_index = (7 - rank_index) * 8 + file_index;
+                    board_8x8[board_index] = piece;
+                    file_index += 1;
                 }
-
-                let piece = match c {
-                    'P' => Piece::WhitePawn,
-                    'R' => Piece::WhiteRook,
-                    'N' => Piece::WhiteKnight,
-                    'B' => Piece::WhiteBishop,
-                    'Q' => Piece::WhiteQueen,
-                    'K' => Piece::WhiteKing,
-                    'p' => Piece::BlackPawn,
-                    'r' => Piece::BlackRook,
-                    'n' => Piece::BlackKnight,
-                    'b' => Piece::BlackBishop,
-                    'q' => Piece::BlackQueen,
-                    'k' => Piece::BlackKing,
-                    '/' => continue,
-                    _   => {
-                        println!("Invalid FEN character {}\n", c);
-                        return false
-                    },
-                };
-
-                board_idx -= 1;
-                board_8x8[board_idx] = piece;
             }
         } else {
-            return false;
-        }
-
-        if board_idx != 0 {
-            println!("Invalid FEN string");
             return false;
         }
         
@@ -219,12 +219,17 @@ impl GameState {
 
         self.ply_moves = total_moves;
 
-        return true;
+        true
+    }
+
+    pub fn create_move(&self, algebraic_notation: &str) -> Option<Move> {
+        self.board.from_uci(algebraic_notation)
     }
 
     pub fn make_move(&mut self, algebraic_notation: &str) {
-        if let Some(play) = Move::from_uci(algebraic_notation) {
-            self.board.make_move(play);
+        match self.create_move(algebraic_notation) {
+            Some(mv) => self.board.make_move(&mv),
+            None => ()
         }
     }
 

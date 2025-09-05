@@ -2,7 +2,6 @@ use std::str::SplitWhitespace;
 
 use crate::game_state::GameState;
 use crate::game_state::SearchConfiguration;
-use crate::game_state::Move;
 
 use std::io::{self, Write};
 
@@ -77,7 +76,7 @@ fn handle_go_command(game_state: &mut GameState, tokens: &mut SplitWhitespace) {
             "searchmoves" => {
                 let mut moves = Vec::new();
                 while let Some(mv) = tokens.clone().next() {
-                    if let Some(parsed) = Move::from_uci(mv) {
+                    if let Some(parsed) = game_state.create_move(mv) {
                         moves.push(parsed);
                         tokens.next(); // advance
                     } else {
