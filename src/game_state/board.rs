@@ -91,6 +91,10 @@ impl Piece {
         self.get_color() == color
     }
 
+    fn is_white(self) -> bool {
+        self.is_color(Color::White)
+    }
+
     fn is_opponent(self, color: Color) -> bool {
         self.is_valid_piece() && self.get_color() != color
     }
@@ -139,7 +143,7 @@ impl ChessBoard {
                 let (rook_from, rook_to) = if from == 4 { (7, 5) } else { (63, 61) };
                 let rook_from = self.map_inner_to_outer_board(rook_from);
                 let rook_to = self.map_inner_to_outer_board(rook_to);
-                let rook_piece = if piece.get_color() == Color::White { Piece::WhiteRook } else { Piece::BlackRook };
+                let rook_piece = if piece.is_white() { Piece::WhiteRook } else { Piece::BlackRook };
                 return Some(CastlingInfo { rook_from, rook_to, rook_piece });
             }
             // Queenside castling: e1-c1 or e8-c8
@@ -147,7 +151,7 @@ impl ChessBoard {
                 let (rook_from, rook_to) = if from == 4 { (0, 3) } else { (56, 59) };
                 let rook_from = self.map_inner_to_outer_board(rook_from);
                 let rook_to = self.map_inner_to_outer_board(rook_to);
-                let rook_piece = if piece.get_color() == Color::White { Piece::WhiteRook } else { Piece::BlackRook };
+                let rook_piece = if piece.is_white() { Piece::WhiteRook } else { Piece::BlackRook };
                 return Some(CastlingInfo { rook_from, rook_to, rook_piece });
             }
         }
@@ -159,7 +163,7 @@ impl ChessBoard {
         if piece.get_type() == PieceType::Pawn && captured == Piece::EmptySquare {
             if let Some(ep_target) = self.get_en_passant_square() {
                 // Check if this is an en passant capture
-                let expected_from = if piece.get_color() == Color::White {
+                let expected_from = if piece.is_white() {
                     ep_target - self.board_width // White pawn was one rank below
                 } else {
                     ep_target + self.board_width // Black pawn was one rank above
@@ -214,10 +218,10 @@ impl ChessBoard {
 
         let promotion = if uci_notation.len() == 5 {
             match &uci_notation[4..5] {
-                "q" => Some(if moving_piece.get_color() == Color::White { Piece::WhiteQueen } else { Piece::BlackQueen }),
-                "r" => Some(if moving_piece.get_color() == Color::White { Piece::WhiteRook } else { Piece::BlackRook }),
-                "n" => Some(if moving_piece.get_color() == Color::White { Piece::WhiteKnight } else { Piece::BlackKnight }),
-                "b" => Some(if moving_piece.get_color() == Color::White { Piece::WhiteBishop } else { Piece::BlackBishop }),
+                "q" => Some(if moving_piece.is_white() { Piece::WhiteQueen } else { Piece::BlackQueen }),
+                "r" => Some(if moving_piece.is_white() { Piece::WhiteRook } else { Piece::BlackRook }),
+                "n" => Some(if moving_piece.is_white() { Piece::WhiteKnight } else { Piece::BlackKnight }),
+                "b" => Some(if moving_piece.is_white() { Piece::WhiteBishop } else { Piece::BlackBishop }),
                 _   => None,
             }
         } else {
@@ -481,7 +485,7 @@ impl ChessBoard {
 
         // If this was an en passant capture
         if mv.en_passant {
-            let capture_square = if mv.piece.get_color() == Color::White {
+            let capture_square = if mv.piece.is_white() {
                 mv.to - self.board_width
             } else {
                 mv.to + self.board_width
@@ -512,12 +516,12 @@ impl ChessBoard {
         self.set_piece_on_square(mv.captured_piece, mv.to);
 
         if mv.en_passant {
-            let capture_square = if mv.piece.get_color() == Color::White {
+            let capture_square = if mv.piece.is_white() {
                 mv.to - self.board_width
             } else { 
                 mv.to + self.board_width
             };
-            let captured_pawn = if mv.piece.get_color() == Color::White {
+            let captured_pawn = if mv.piece.is_white() {
                 Piece::BlackPawn
             } else {
                 Piece::WhitePawn

@@ -511,12 +511,12 @@ impl PieceList {
 
         // Handle en passant separately (captured pawn is on different square)
         if mv.en_passant {
-            let capture_square = if mv.piece.get_color() == Color::White {
+            let capture_square = if mv.piece.is_white() {
                 mv.to - 10 // Todo: think of a better way to pass the board width
             } else { 
                 mv.to + 10
             };
-            let captured_pawn = if mv.piece.get_color() == Color::White {
+            let captured_pawn = if mv.piece.is_white() {
                 Piece::BlackPawn
             } else {
                 Piece::WhitePawn
@@ -545,12 +545,12 @@ impl PieceList {
         }
 
         if mv.en_passant {
-            let capture_square = if mv.piece.get_color() == Color::White {
+            let capture_square = if mv.piece.is_white() {
                 mv.to - 10 // Todo: think of a better way to pass the board width
             } else { 
                 mv.to + 10
             };
-            let captured_pawn = if mv.piece.get_color() == Color::White {
+            let captured_pawn = if mv.piece.is_white() {
                 Piece::BlackPawn
             } else {
                 Piece::WhitePawn
@@ -808,12 +808,8 @@ impl PieceList {
             let moving_color = chess_board.get_piece_on_square(from).get_color();
 
             let piece = chess_board.get_piece_on_square(to);
-            if piece.is_empty() {
+            if piece.is_empty() || piece.is_opponent(moving_color) {
                 return true;
-            } else if piece.is_opponent(moving_color) {
-                return true;
-            } else if piece.is_friend(moving_color) {
-                return false;
             } else {
                 return false;
             }
@@ -841,12 +837,8 @@ impl PieceList {
             let moving_color = chess_board.get_piece_on_square(from).get_color();
 
             let piece = chess_board.get_piece_on_square(to);
-            if piece.is_empty() {
+            if piece.is_empty() || piece.is_opponent(moving_color) {
                 return true;
-            } else if piece.is_opponent(moving_color) {
-                return true;
-            } else if piece.is_friend(moving_color) {
-                return false;
             } else {
                 return false;
             }
