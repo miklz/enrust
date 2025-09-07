@@ -228,19 +228,24 @@ impl GameState {
 
     pub fn make_move(&mut self, algebraic_notation: &str) {
         match self.create_move(algebraic_notation) {
-            Some(mv) => self.board.make_move(&mv),
+            Some(mv) => {
+                self.board.make_move(&mv);
+                self.side_to_move = if self.side_to_move == Color::White { Color::Black } else { Color::White }
+            },
             None => ()
         }
     }
 
-    pub fn search(&self) -> Option<&str> {
+    pub fn search(&mut self) -> String {
         // The pieces positions was already defined on the board and
         // the time control was set with the time requirements
         // needed to perform a search
         //let sc = self.search_control.as_ref().expect("No time control set");
 
-        // Stub for now
-        Some("e2e4")
+        match self.board.search(self.side_to_move) {
+            Some(mv) => self.board.move_to_uci(&mv),
+            None => "0000".to_string()
+        }
     }
 
     pub fn print_board(&self) {

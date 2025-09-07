@@ -102,11 +102,7 @@ fn handle_go_command(game_state: &mut GameState, tokens: &mut SplitWhitespace) {
     
     game_state.set_time_control(&sc);
 
-    if let Some(bestmove) = game_state.search() {
-        println!("bestmove {}", bestmove);
-    } else {
-        println!("bestmove 0000");
-    }
+    println!("bestmove {}", game_state.search());
 }
 
 pub fn uci_main() {

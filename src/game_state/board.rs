@@ -119,6 +119,7 @@ pub struct CastlingInfo {
     pub rook_piece: Piece,
 }
 
+#[derive(Clone)]
 pub struct ChessBoard {
     board_width     : i16,
     board_height    : i16,
@@ -136,12 +137,16 @@ impl ChessBoard {
             // Kingside castling: e1-g1 or e8-g8
             if (from == 4 && to == 6) || (from == 60 && to == 62) {
                 let (rook_from, rook_to) = if from == 4 { (7, 5) } else { (63, 61) };
+                let rook_from = self.map_inner_to_outer_board(rook_from);
+                let rook_to = self.map_inner_to_outer_board(rook_to);
                 let rook_piece = if piece.get_color() == Color::White { Piece::WhiteRook } else { Piece::BlackRook };
                 return Some(CastlingInfo { rook_from, rook_to, rook_piece });
             }
             // Queenside castling: e1-c1 or e8-c8
             else if (from == 4 && to == 2) || (from == 60 && to == 58) {
                 let (rook_from, rook_to) = if from == 4 { (0, 3) } else { (56, 59) };
+                let rook_from = self.map_inner_to_outer_board(rook_from);
+                let rook_to = self.map_inner_to_outer_board(rook_to);
                 let rook_piece = if piece.get_color() == Color::White { Piece::WhiteRook } else { Piece::BlackRook };
                 return Some(CastlingInfo { rook_from, rook_to, rook_piece });
             }
@@ -195,8 +200,8 @@ impl ChessBoard {
             return None;
         }
 
-        let from = notation_to_square(&uci_notation[0..2])?;
-        let to = notation_to_square(&uci_notation[2..4])?;
+        let from = self.map_inner_to_outer_board(notation_to_square(&uci_notation[0..2])?);
+        let to = self.map_inner_to_outer_board(notation_to_square(&uci_notation[2..4])?);
 
         // Get the moving piece from the board
         let moving_piece = self.get_piece_on_square(from);
@@ -237,6 +242,37 @@ impl ChessBoard {
 
     pub fn from_uci(&self, uci_notation: &str) -> Option<Move> {
         Self::parse_algebraic_move(&self, uci_notation)
+    }
+
+    pub fn move_to_uci(&self, mv: &Move) -> String {
+        let from_square = self.square_to_notation(mv.from);
+        let to_square = self.square_to_notation(mv.to);
+        
+        let promotion_suffix = if let Some(promo_piece) = mv.promotion {
+            match promo_piece {
+                Piece::WhiteQueen | Piece::BlackQueen => "q",
+                Piece::WhiteRook | Piece::BlackRook => "r",
+                Piece::WhiteBishop | Piece::BlackBishop => "b",
+                Piece::WhiteKnight | Piece::BlackKnight => "n",
+                _ => "",
+            }
+        } else {
+            ""
+        };
+        
+        format!("{}{}{}", from_square, to_square, promotion_suffix)
+    }
+    
+    fn square_to_notation(&self, square: i16) -> String {
+        // Convert from your internal 0-63 representation to algebraic notation
+        let chess_square = self.map_to_standard_chess_board(square);
+        let file = (chess_square % 8) as u8;
+        let rank = (chess_square / 8) as u8;
+        
+        let file_char = (b'a' + file) as char;
+        let rank_char = (b'1' + rank) as char;
+        
+        format!("{}{}", file_char, rank_char)
     }
 
     fn create_pawn_move(&self, from: i16, to: i16, piece: Piece, captured: Piece, promotion: Option<Piece>, en_passant: bool) -> Move {
@@ -284,11 +320,11 @@ impl ChessBoard {
     }
 
     fn get_piece_on_square(&self, square: i16) -> Piece {
-        self.board_squares[self.map_inner_to_outer_board(square)]
+        self.board_squares[square as usize]
     }
 
     fn set_piece_on_square(&mut self, piece: Piece, square: i16) {
-        self.board_squares[self.map_inner_to_outer_board(square)] = piece;
+        self.board_squares[square as usize] = piece;
     }
 
     fn are_on_the_same_rank(&self, square1: i16, square2: i16) -> bool {
@@ -385,13 +421,13 @@ impl ChessBoard {
         !self.is_light_square(square)
     }
 
-    fn map_inner_to_outer_board(&self, square: i16) -> usize {
+    fn map_inner_to_outer_board(&self, square: i16) -> i16 {
         // We have a larger board with sentinel squares around the edges.
         // This function converts a standard 0-63 chess square to its position
         // in our internal board representation.
         
         // Calculate the starting position of the inner 8×8 board within our larger board
-        let vertical_padding = (self.board_height - 8) / 2;   // Rows above the chess board
+        let vertical_padding = (self.board_height - 8) / 2;   // Rows below the chess board
         let horizontal_padding = (self.board_width - 8) / 2;  // Columns to the left
         
         let board_offset = vertical_padding * self.board_width + horizontal_padding;
@@ -403,7 +439,19 @@ impl ChessBoard {
         // Internal position = (rows above) + (chess rank) × (board width) + (columns left) + (chess file)
         let internal_square = self.board_width * chess_rank + chess_file + board_offset;
         
-        internal_square as usize
+        internal_square as i16
+    }
+
+    fn map_to_standard_chess_board(&self, square: i16) -> usize {
+        // Reverse of your map_inner_to_outer_board function
+        let board_width = self.board_width;
+        let rank = square / board_width;
+        let file = square % board_width;
+
+        let chess_rank = rank - 2;  // Convert from 2-9 to 0-7
+        let chess_file = file - 1;  // Convert from 1-8 to 0-7
+            
+        (chess_rank * 8 + chess_file) as usize
     }
 
     /* We expect an 8x8 array of pieces*/
@@ -414,11 +462,12 @@ impl ChessBoard {
         }
 
         for (square, &piece) in board_position.iter().enumerate() {
-            self.set_piece_on_square(piece, square as i16);
+            let inner_square = self.map_inner_to_outer_board(square as i16);
+            self.set_piece_on_square(piece, inner_square);
         }
 
         // When the board is set all at once we have to update the piece-lists
-        self.piece_list.update_lists(board_position);
+        self.piece_list.update_lists(&self.board_squares);
     }
 
     pub fn set_en_passant_square(&mut self, square: i16) {
@@ -430,10 +479,14 @@ impl ChessBoard {
     pub fn make_move(&mut self, mv: &Move) {
         let piece = mv.piece;
 
-        if let Some(piece_promotion) = mv.promotion {
-            self.set_piece_on_square(piece_promotion, mv.to);
-        } else {
-            self.set_piece_on_square(piece, mv.to);
+        // If this was an en passant capture
+        if mv.en_passant {
+            let capture_square = if mv.piece.get_color() == Color::White {
+                mv.to - self.board_width
+            } else {
+                mv.to + self.board_width
+            };
+            self.set_piece_on_square(Piece::EmptySquare, capture_square);
         }
 
         if let Some(castling) = &mv.castling {
@@ -441,11 +494,10 @@ impl ChessBoard {
             self.set_piece_on_square(castling.rook_piece, castling.rook_to);
         }
 
-        // If this was an en passant capture
-        if mv.en_passant {
-            if let Some(en_passant_target) = mv.previous_en_passant {
-                self.set_piece_on_square(Piece::EmptySquare, en_passant_target);
-            }
+        if let Some(piece_promotion) = mv.promotion {
+            self.set_piece_on_square(piece_promotion, mv.to);
+        } else {
+            self.set_piece_on_square(piece, mv.to);
         }
         
         // When a move is made, the previous square of the piece is cleared
@@ -453,6 +505,49 @@ impl ChessBoard {
 
         // Update piece list
         self.piece_list.make_move(&mv);
+    }
+
+    pub fn unmake_move(&mut self, mv: &Move) {
+        // Restaure captured piece
+        self.set_piece_on_square(mv.captured_piece, mv.to);
+
+        if mv.en_passant {
+            let capture_square = if mv.piece.get_color() == Color::White {
+                mv.to - self.board_width
+            } else { 
+                mv.to + self.board_width
+            };
+            let captured_pawn = if mv.piece.get_color() == Color::White {
+                Piece::BlackPawn
+            } else {
+                Piece::WhitePawn
+            };
+            self.set_piece_on_square(captured_pawn, capture_square);
+        }
+
+        if let Some(castling) = &mv.castling {
+            self.set_piece_on_square(castling.rook_piece, castling.rook_from);
+            self.set_piece_on_square(Piece::EmptySquare, castling.rook_to);
+        }
+
+        // Promotion is undone automatically
+        self.set_piece_on_square(mv.piece, mv.from);
+
+        self.piece_list.unmake_move(&mv);
+    }
+
+    pub fn search(&mut self, side_to_move: Color) -> Option<Move> {
+        // We clone the board so that the piece-list
+        // can do and undo moves to check for legal moves
+        let mut board_copy = self.clone();
+        let moves = self.piece_list.generate_legal_moves(&mut board_copy, side_to_move);
+
+        if moves.is_empty() {
+            None
+        } else {
+            // Return first move for now (random move implementation)
+            Some(moves[0].clone())
+        }
     }
 
     pub fn print_board(&self) {
