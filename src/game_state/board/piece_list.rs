@@ -23,6 +23,15 @@ pub struct PieceList {
 impl PieceList {
     fn is_king_safe(&mut self, chess_board: &mut ChessBoard, color: Color, mv: &Move) -> bool {
         chess_board.make_move(&mv);
+        // Update piece lists to match board state after move execution.
+        // CRITICAL: Without this synchronization, the piece lists contain outdated
+        // positions, leading to incorrect king safety evaluation. For example:
+        // - The moved piece still appears at its original square in the lists
+        // - Captured pieces remain in the lists but not on the board
+        // - This mismatch causes attack detection to fail, allowing illegal moves
+        //   that leave the king in check to be considered "safe"
+        // A better architecture is needed to avoid this problem.
+        self.make_move(&mv);
 
         match color {
             Color::White => {
@@ -31,6 +40,7 @@ impl PieceList {
                     for black_queen in self.black_queen_list.iter_mut() {
                         if Self::queen_move(chess_board, *black_queen, white_king) {
                             chess_board.unmake_move(&mv);
+                            self.unmake_move(&mv);
                             return false
                         }
                     }
@@ -38,6 +48,7 @@ impl PieceList {
                     for black_rook in self.black_rook_list.iter_mut() {
                         if Self::rook_move(chess_board, *black_rook, white_king) {
                             chess_board.unmake_move(&mv);
+                            self.unmake_move(&mv);
                             return false
                         }
                     }
@@ -45,6 +56,7 @@ impl PieceList {
                     for black_bishop in self.black_bishop_list.iter_mut() {
                         if Self::bishop_move(chess_board, *black_bishop, white_king) {
                             chess_board.unmake_move(&mv);
+                            self.unmake_move(&mv);
                             return false
                         }
                     }
@@ -52,6 +64,7 @@ impl PieceList {
                     for black_knight in self.black_knight_list.iter_mut() {
                         if Self::knight_move(chess_board, *black_knight, white_king) {
                             chess_board.unmake_move(&mv);
+                            self.unmake_move(&mv);
                             return false
                         }
                     }
@@ -59,6 +72,7 @@ impl PieceList {
                     for black_pawn in self.black_pawn_list.iter_mut() {
                         if Self::pawn_move(chess_board, *black_pawn, white_king) {
                             chess_board.unmake_move(&mv);
+                            self.unmake_move(&mv);
                             return false
                         }
                     }
@@ -66,6 +80,7 @@ impl PieceList {
                     for black_king in self.black_king_list.iter_mut() {
                         if Self::king_move(chess_board, *black_king, white_king) {
                             chess_board.unmake_move(&mv);
+                            self.unmake_move(&mv);
                             return false
                         }
                     }
@@ -77,6 +92,7 @@ impl PieceList {
                     for white_queen in self.white_queen_list.iter_mut() {
                         if Self::queen_move(chess_board, *white_queen, black_king) {
                             chess_board.unmake_move(&mv);
+                            self.unmake_move(&mv);
                             return false
                         }
                     }
@@ -84,6 +100,7 @@ impl PieceList {
                     for white_rook in self.white_rook_list.iter_mut() {
                         if Self::rook_move(chess_board, *white_rook, black_king) {
                             chess_board.unmake_move(&mv);
+                            self.unmake_move(&mv);
                             return false
                         }
                     }
@@ -91,6 +108,7 @@ impl PieceList {
                     for white_bishop in self.white_bishop_list.iter_mut() {
                         if Self::bishop_move(chess_board, *white_bishop, black_king) {
                             chess_board.unmake_move(&mv);
+                            self.unmake_move(&mv);
                             return false
                         }
                     }
@@ -98,6 +116,7 @@ impl PieceList {
                     for white_knight in self.white_knight_list.iter_mut() {
                         if Self::knight_move(chess_board, *white_knight, black_king) {
                             chess_board.unmake_move(&mv);
+                            self.unmake_move(&mv);
                             return false
                         }
                     }
@@ -105,6 +124,7 @@ impl PieceList {
                     for white_pawn in self.white_pawn_list.iter_mut() {
                         if Self::pawn_move(chess_board, *white_pawn, black_king) {
                             chess_board.unmake_move(&mv);
+                            self.unmake_move(&mv);
                             return false
                         }
                     }
@@ -112,6 +132,7 @@ impl PieceList {
                     for white_king in self.white_king_list.iter_mut() {
                         if Self::king_move(chess_board, *white_king, black_king) {
                             chess_board.unmake_move(&mv);
+                            self.unmake_move(&mv);
                             return false
                         }
                     }
@@ -120,7 +141,7 @@ impl PieceList {
         }
 
         chess_board.unmake_move(&mv);
-        println!("King is not in check");
+        self.unmake_move(&mv);
 
         true
     }
@@ -178,7 +199,7 @@ impl PieceList {
             Color::Black => (Piece::BlackQueen, &self.black_queen_list)
         };
 
-        let queen_rays: [i16; 8] = [-1, 1, 8, -chess_board.board_width,
+        let queen_rays: [i16; 8] = [-1, 1, chess_board.board_width, -chess_board.board_width,
                         chess_board.board_width + 1, -chess_board.board_width + 1,
                         chess_board.board_width - 1, -chess_board.board_width - 1];
 
@@ -189,13 +210,21 @@ impl PieceList {
                     position += ray;
 
                     let target = chess_board.get_piece_on_square(position);
-                    if target.is_empty() || target.is_opponent(color) {
+                    if target.is_empty() {
                         moves.push(chess_board.create_move(
                             square,
                             position,
                             queen,
                             target,
                         ));
+                    } else if target.is_opponent(color) {
+                        moves.push(chess_board.create_move(
+                            square,
+                            position,
+                            queen,
+                            target,
+                        ));
+                        break;
                     }
 
                     if target.is_sentinel() || target.is_friend(color) {
@@ -225,13 +254,22 @@ impl PieceList {
                     position += ray;
 
                     let target = chess_board.get_piece_on_square(position);
-                    if target.is_empty() || target.is_opponent(color) {
+                    if target.is_empty() {
                         moves.push(chess_board.create_move(
                             square,
                             position,
                             rook,
                             target
                         ));
+                    } else if target.is_opponent(color) {
+                        moves.push(chess_board.create_move(
+                            square,
+                            position,
+                            rook,
+                            target
+                        ));
+                        // If there is an enemy in this square, the rook can't go further
+                        break;
                     }
 
                     if target.is_sentinel() || target.is_friend(color) {
@@ -262,13 +300,21 @@ impl PieceList {
                     position += ray;
                     
                     let target = chess_board.get_piece_on_square(position);
-                    if target.is_empty() || target.is_opponent(color) {
+                    if target.is_empty() {
                         moves.push(chess_board.create_move(
                             square,
                             position,
                             bishop,
                             target
                         ));
+                    } else if target.is_opponent(color) {
+                        moves.push(chess_board.create_move(
+                            square,
+                            position,
+                            bishop,
+                            target
+                        ));
+                        break;
                     }
 
                     if target.is_sentinel() || target.is_friend(color) {
