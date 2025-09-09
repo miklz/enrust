@@ -36,105 +36,15 @@ impl PieceList {
         match color {
             Color::White => {
                 if let Some(&white_king) = self.white_king_list.get(0) {
-
-                    for black_queen in self.black_queen_list.iter_mut() {
-                        if Self::queen_move(chess_board, *black_queen, white_king) {
-                            chess_board.unmake_move(&mv);
-                            self.unmake_move(&mv);
-                            return false
-                        }
-                    }
-
-                    for black_rook in self.black_rook_list.iter_mut() {
-                        if Self::rook_move(chess_board, *black_rook, white_king) {
-                            chess_board.unmake_move(&mv);
-                            self.unmake_move(&mv);
-                            return false
-                        }
-                    }
-
-                    for black_bishop in self.black_bishop_list.iter_mut() {
-                        if Self::bishop_move(chess_board, *black_bishop, white_king) {
-                            chess_board.unmake_move(&mv);
-                            self.unmake_move(&mv);
-                            return false
-                        }
-                    }
-
-                    for black_knight in self.black_knight_list.iter_mut() {
-                        if Self::knight_move(chess_board, *black_knight, white_king) {
-                            chess_board.unmake_move(&mv);
-                            self.unmake_move(&mv);
-                            return false
-                        }
-                    }
-
-                    for black_pawn in self.black_pawn_list.iter_mut() {
-                        if Self::pawn_move(chess_board, *black_pawn, white_king) {
-                            chess_board.unmake_move(&mv);
-                            self.unmake_move(&mv);
-                            return false
-                        }
-                    }
-
-                    for black_king in self.black_king_list.iter_mut() {
-                        if Self::king_move(chess_board, *black_king, white_king) {
-                            chess_board.unmake_move(&mv);
-                            self.unmake_move(&mv);
-                            return false
-                        }
+                    if self.is_square_attacked(chess_board, white_king, Color::Black) {
+                        return false;
                     }
                 }
             },
             Color::Black => {
                 if let Some(&black_king) = self.black_king_list.get(0) {
-
-                    for white_queen in self.white_queen_list.iter_mut() {
-                        if Self::queen_move(chess_board, *white_queen, black_king) {
-                            chess_board.unmake_move(&mv);
-                            self.unmake_move(&mv);
-                            return false
-                        }
-                    }
-
-                    for white_rook in self.white_rook_list.iter_mut() {
-                        if Self::rook_move(chess_board, *white_rook, black_king) {
-                            chess_board.unmake_move(&mv);
-                            self.unmake_move(&mv);
-                            return false
-                        }
-                    }
-
-                    for white_bishop in self.white_bishop_list.iter_mut() {
-                        if Self::bishop_move(chess_board, *white_bishop, black_king) {
-                            chess_board.unmake_move(&mv);
-                            self.unmake_move(&mv);
-                            return false
-                        }
-                    }
-
-                    for white_knight in self.white_knight_list.iter_mut() {
-                        if Self::knight_move(chess_board, *white_knight, black_king) {
-                            chess_board.unmake_move(&mv);
-                            self.unmake_move(&mv);
-                            return false
-                        }
-                    }
-
-                    for white_pawn in self.white_pawn_list.iter_mut() {
-                        if Self::pawn_move(chess_board, *white_pawn, black_king) {
-                            chess_board.unmake_move(&mv);
-                            self.unmake_move(&mv);
-                            return false
-                        }
-                    }
-
-                    for white_king in self.white_king_list.iter_mut() {
-                        if Self::king_move(chess_board, *white_king, black_king) {
-                            chess_board.unmake_move(&mv);
-                            self.unmake_move(&mv);
-                            return false
-                        }
+                    if self.is_square_attacked(chess_board, black_king, Color::White) {
+                        return false;
                     }
                 }
             },
@@ -160,6 +70,7 @@ impl PieceList {
         all_moves.append(&mut self.generate_bishop_moves(chess_board, color));
         all_moves.append(&mut self.generate_knight_moves(chess_board, color));
         all_moves.append(&mut self.generate_pawn_moves(chess_board, color));
+        all_moves.append(&mut self.generate_castling_moves(chess_board, color));
 
         all_moves
     }
@@ -511,6 +422,65 @@ impl PieceList {
         moves
     }
 
+    fn generate_castling_moves(&self, chess_board: &ChessBoard, color: Color) -> Vec<Move> {
+        let mut moves = Vec::new();
+
+        let (king_square, king_piece, rook_kingside, rook_queenside) = match color {
+            Color::White => (
+                25, // e1
+                Piece::WhiteKing,
+                28, // h1
+                21  // a1
+            ),
+            Color::Black => (
+                95, // e8
+                Piece::BlackKing,
+                98, // h8
+                91  // a8
+            ),
+        };
+
+        let castling_rights = &chess_board.castling_rights;
+
+        // Kingside castling
+        if (color == Color::White && castling_rights.white_kingside) ||
+           (color == Color::Black && castling_rights.black_kingside) {
+            
+            if self.can_castle_kingside(chess_board, color, king_square, rook_kingside) {
+                let king_to = king_square + 2; // g1 or g8
+                let rook_to = king_square + 1; // f1 or f8
+                
+                moves.push(chess_board.create_castling_move(
+                    king_square,
+                    king_to,
+                    king_piece,
+                    rook_kingside,
+                    rook_to,
+                ));
+            }
+        }
+
+        // Queenside castling
+        if (color == Color::White && castling_rights.white_queenside) ||
+           (color == Color::Black && castling_rights.black_queenside) {
+            
+            if self.can_castle_queenside(chess_board, color, king_square, rook_queenside) {
+                let king_to = king_square - 2; // c1 or c8
+                let rook_to = king_square - 1; // d1 or d8
+                
+                moves.push(chess_board.create_castling_move(
+                    king_square,
+                    king_to,
+                    king_piece,
+                    rook_queenside,
+                    rook_to,
+                ));
+            }
+        }
+
+        moves
+    }
+
     pub fn update_lists(&mut self, board_position : &[Piece; 120]) {
         // The board is our reference, so we can clear all of our lists
         // and set the values from the board to the list
@@ -724,6 +694,24 @@ impl PieceList {
             Piece::BlackBishop => Some(&mut self.black_bishop_list),
             Piece::BlackQueen => Some(&mut self.black_queen_list),
             Piece::BlackKing => Some(&mut self.black_king_list),
+            _ => None,
+        }
+    }
+
+    fn get_list(&self, piece: Piece) -> Option<&Vec<i16>> {
+        match piece {
+            Piece::WhitePawn => Some(&self.white_pawn_list),
+            Piece::WhiteRook => Some(&self.white_rook_list),
+            Piece::WhiteKnight => Some(&self.white_knight_list),
+            Piece::WhiteBishop => Some(&self.white_bishop_list),
+            Piece::WhiteQueen => Some(&self.white_queen_list),
+            Piece::WhiteKing => Some(&self.white_king_list),
+            Piece::BlackPawn => Some(&self.black_pawn_list),
+            Piece::BlackRook => Some(&self.black_rook_list),
+            Piece::BlackKnight => Some(&self.black_knight_list),
+            Piece::BlackBishop => Some(&self.black_bishop_list),
+            Piece::BlackQueen => Some(&self.black_queen_list),
+            Piece::BlackKing => Some(&self.black_king_list),
             _ => None,
         }
     }
@@ -959,6 +947,189 @@ impl PieceList {
         }
 
         // We only get here if we got lost from the true path.
+        false
+    }
+
+    fn can_castle_kingside(&self, chess_board: &ChessBoard, color: Color, king_square: i16, rook_square: i16) -> bool {
+        // 1. Check if king and rook are in starting positions
+        if chess_board.get_piece_on_square(king_square) != if color == Color::White { Piece::WhiteKing } else { Piece::BlackKing } {
+            return false;
+        }
+        
+        if chess_board.get_piece_on_square(rook_square) != if color == Color::White { Piece::WhiteRook } else { Piece::BlackRook } {
+            return false;
+        }
+
+        // 2. Check if squares between king and rook are empty
+        let squares_between = match color {
+            Color::White => vec![26, 27], // f1, g1
+            Color::Black => vec![96, 97], // f8, g8
+        };
+
+        for square in squares_between {
+            if chess_board.get_piece_on_square(square) != Piece::EmptySquare {
+                return false;
+            }
+        }
+
+        // 3. Check if king is not in check and doesn't move through check
+        let check_squares = match color {
+            Color::White => vec![25, 26, 27], // e1, f1, g1
+            Color::Black => vec![95, 96, 97], // e8, f8, g8
+        };
+
+        for square in check_squares {
+            let opposite_color = if color == Color::White { Color::Black } else {Color::White};
+            if self.is_square_attacked(chess_board, square, opposite_color) {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    fn can_castle_queenside(&self, chess_board: &ChessBoard, color: Color, king_square: i16, rook_square: i16) -> bool {
+        // 1. Check if king and rook are in starting positions
+        if chess_board.get_piece_on_square(king_square) != if color == Color::White { Piece::WhiteKing } else { Piece::BlackKing } {
+            return false;
+        }
+        
+        if chess_board.get_piece_on_square(rook_square) != if color == Color::White { Piece::WhiteRook } else { Piece::BlackRook } {
+            return false;
+        }
+
+        // 2. Check if squares between king and rook are empty
+        let squares_between = match color {
+            Color::White => vec![22, 23, 24], // b1, c1, d1
+            Color::Black => vec![92, 93, 94], // b8, c8, d8
+        };
+
+        for square in squares_between {
+            if chess_board.get_piece_on_square(square) != Piece::EmptySquare {
+                return false;
+            }
+        }
+
+        // 3. Check if king is not in check and doesn't move through check
+        let check_squares = match color {
+            Color::White => vec![25, 24, 23], // e1, d1, c1
+            Color::Black => vec![95, 94, 93], // e8, d8, c8
+        };
+
+        for square in check_squares {
+            let opposite_color = if color == Color::White { Color::Black } else {Color::White};
+            if self.is_square_attacked(chess_board, square, opposite_color) {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    fn is_square_attacked(&self, chess_board: &ChessBoard, square: i16, by_color: Color) -> bool {
+        // This function check if a square is attacked by any piece of the given color
+        match by_color {
+            Color::White => {
+                if let Some(queen_list) = self.get_list(Piece::WhiteQueen) {
+                    for &queen in queen_list.iter() {
+                        if Self::queen_move(chess_board, queen, square) {
+                            return true;
+                        }
+                    }
+                }
+
+                if let Some(rook_list) = self.get_list(Piece::WhiteRook) {
+                    for &rook in rook_list.iter() {
+                        if Self::rook_move(chess_board, rook, square) {
+                            return true;
+                        }
+                    }
+                }
+
+                if let Some(bishop_list) = self.get_list(Piece::WhiteBishop) {
+                    for &bishop in bishop_list.iter() {
+                        if Self::bishop_move(chess_board, bishop, square) {
+                            return true;
+                        }
+                    }
+                }
+
+                if let Some(knight_list) = self.get_list(Piece::WhiteKnight) {
+                    for &knight in knight_list.iter() {
+                        if Self::knight_move(chess_board, knight, square) {
+                            return true;
+                        }
+                    }
+                }
+
+                if let Some(pawn_list) = self.get_list(Piece::WhitePawn) {
+                    for &pawn in pawn_list.iter() {
+                        if Self::pawn_move(chess_board, pawn, square) {
+                            return true;
+                        }
+                    }
+                }
+
+                if let Some(king_list) = self.get_list(Piece::WhiteKing) {
+                    for &king in king_list.iter() {
+                        if Self::king_move(chess_board, king, square) {
+                            return true;
+                        }
+                    }
+                }
+            },
+
+            Color::Black => {
+                if let Some(queen_list) = self.get_list(Piece::BlackQueen) {
+                    for &queen in queen_list.iter() {
+                        if Self::queen_move(chess_board, queen, square) {
+                            return true;
+                        }
+                    }
+                }
+
+                if let Some(rook_list) = self.get_list(Piece::BlackRook) {
+                    for &rook in rook_list.iter() {
+                        if Self::rook_move(chess_board, rook, square) {
+                            return true;
+                        }
+                    }
+                }
+
+                if let Some(bishop_list) = self.get_list(Piece::BlackBishop) {
+                    for &bishop in bishop_list.iter() {
+                        if Self::bishop_move(chess_board, bishop, square) {
+                            return true;
+                        }
+                    }
+                }
+
+                if let Some(knight_list) = self.get_list(Piece::BlackKnight) {
+                    for &knight in knight_list.iter() {
+                        if Self::knight_move(chess_board, knight, square) {
+                            return true;
+                        }
+                    }
+                }
+
+                if let Some(pawn_list) = self.get_list(Piece::BlackPawn) {
+                    for &pawn in pawn_list.iter() {
+                        if Self::pawn_move(chess_board, pawn, square) {
+                            return true;
+                        }
+                    }
+                }
+
+                if let Some(king_list) = self.get_list(Piece::BlackKing) {
+                    for &king in king_list.iter() {
+                        if Self::king_move(chess_board, king, square) {
+                            return true;
+                        }
+                    }
+                }
+            },
+        }
+
         false
     }
 }

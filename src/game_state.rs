@@ -3,6 +3,7 @@ pub use crate::game_state::board::ChessBoard;
 pub use crate::game_state::board::Color;
 pub use crate::game_state::board::Move;
 pub use crate::game_state::board::Piece;
+pub use crate::game_state::board::CastlingRights;
 
 #[derive(Clone)]
 pub struct SearchConfiguration {
@@ -65,12 +66,6 @@ pub struct GameState {
     ply_moves       : u64,
     side_to_move    : Color,
     search_control  : Option<SearchConfiguration>,
-
-    // position 0: White king side castle rights
-    // position 1: White queen side castle rights
-    // position 2: Black king side castle rights
-    // position 3: Black queen side castle rights
-    castling_rights : (bool, bool, bool, bool),
 
     board           : ChessBoard,
 }
@@ -152,24 +147,27 @@ impl GameState {
             return false;
         }
 
-        self.castling_rights.0 = false;
-        self.castling_rights.1 = false;
-        self.castling_rights.2 = false;
-        self.castling_rights.3 = false;
+        let mut white_queenside = true;
+        let mut white_kingside = true;
+        let mut black_queenside = true;
+        let mut black_kingside = true;
 
         // Castling rights
         if let Some(castling_rights) = fen.next() {
             for c in castling_rights.chars() {
                 match c {
                     '-' => break,
-                    'K' => self.castling_rights.0 = true,
-                    'Q' => self.castling_rights.1 = true,
-                    'k' => self.castling_rights.2 = true,
-                    'q' => self.castling_rights.3 = true,
+                    'K' => white_kingside = true,
+                    'Q' => white_queenside = true,
+                    'k' => black_kingside = true,
+                    'q' => black_queenside = true,
                     _   => return false
                 }
             }
         }
+
+        let castling_rights = CastlingRights { white_queenside, white_kingside, black_queenside, black_kingside };
+        self.board.set_castling_rights(&castling_rights);
 
         if let Some(en_passant) = fen.next() {
             if en_passant != "-" {
@@ -259,7 +257,6 @@ impl Default for GameState {
             ply_moves: 0,
             side_to_move: Color::White,
             search_control: None,
-            castling_rights : (true, true, true, true),
             board: ChessBoard::default()
         }
     }

@@ -117,6 +117,14 @@ pub struct Move {
 }
 
 #[derive(Clone)]
+pub struct CastlingRights {
+    pub white_queenside : bool,
+    pub white_kingside  : bool,
+    pub black_queenside : bool,
+    pub black_kingside  : bool,
+}
+
+#[derive(Clone)]
 pub struct CastlingInfo {
     pub rook_from: i16,
     pub rook_to: i16,
@@ -131,6 +139,8 @@ pub struct ChessBoard {
     
     // Which square is el passant valid
     en_passant_target: Option<i16>,
+
+    castling_rights : CastlingRights,
 
     piece_list      : PieceList,
 }
@@ -305,12 +315,12 @@ impl ChessBoard {
         }
     }
 
-    fn create_castling_move(&self, king_from: i16, king_to: i16, rook_from: i16, rook_to: i16) -> Move {
+    fn create_castling_move(&self, king_from: i16, king_to: i16, king_piece: Piece, rook_from: i16, rook_to: i16) -> Move {
         let color = if king_from == 4 { Color::White } else { Color::Black };
         Move {
             from: king_from,
             to: king_to,
-            piece: if color == Color::White { Piece::WhiteKing } else { Piece::BlackKing },
+            piece: king_piece,
             captured_piece: Piece::EmptySquare,
             promotion: None,
             castling: Some(CastlingInfo {
@@ -475,8 +485,14 @@ impl ChessBoard {
     }
 
     pub fn set_en_passant_square(&mut self, square: i16) {
-        let board_offset = 2 * self.board_width + (self.board_width - 8) / 2;
-        self.en_passant_target = Some(board_offset + square);
+        self.en_passant_target = Some(self.map_inner_to_outer_board(square));
+    }
+
+    pub fn set_castling_rights(&mut self, castling_rights: &CastlingRights) {
+        self.castling_rights.white_queenside = castling_rights.white_queenside;
+        self.castling_rights.white_kingside = castling_rights.white_kingside;
+        self.castling_rights.black_queenside = castling_rights.black_queenside;
+        self.castling_rights.black_kingside = castling_rights.black_kingside;
     }
 
     // Given a move, update the board
@@ -601,6 +617,8 @@ impl Default for ChessBoard {
             board_height: 12,
             board_squares: [Piece::SentinelSquare; 10*12],
             en_passant_target: None,
+
+            castling_rights : CastlingRights {white_kingside: false, white_queenside: false, black_kingside: false, black_queenside: false},
 
             piece_list: PieceList::default()
         }
