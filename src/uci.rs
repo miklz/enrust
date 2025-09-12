@@ -96,6 +96,15 @@ fn handle_go_command(game_state: &mut GameState, tokens: &mut SplitWhitespace) {
                 }
             }
 
+            // Not a standard UCI command, but a some debugging tools need this to test the engine
+            "perft" => {
+                if let Some(depth_str) = tokens.next() {
+                    if let Ok(depth) = depth_str.parse::<u64>() {
+                        game_state.perft_debug(depth, true);
+                    }
+                }
+            }
+
             _ => {}
         }
     }

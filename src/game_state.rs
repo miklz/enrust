@@ -44,20 +44,20 @@ impl SearchConfiguration {
         if self.infinite {
             return None;
         }
-        
+
         if let Some(movetime) = self.movetime {
             return Some(movetime);
         }
-        
+
         let (time_left, increment) = match side_to_move {
             Color::White => (self.wtime?, self.winc.unwrap_or(0)),
             Color::Black => (self.btime?, self.binc.unwrap_or(0)),
         };
-        
+
         // Simple time management: use time_left / movestogo or a fraction
         let moves_to_go = self.movestogo.unwrap_or(20) as f64;
         let allocated_time = (time_left as f64 / moves_to_go).min(time_left as f64 * 0.9) as u64;
-        
+
         Some(allocated_time + increment)
     }
 }
@@ -133,7 +133,7 @@ impl GameState {
         } else {
             return false;
         }
-        
+
         self.board.set_board(&board_8x8);
 
         // Side to move
@@ -202,7 +202,7 @@ impl GameState {
         } else {
             return false;
         }
-        
+
 
         // Full move
         if let Some(full_moves_str) = fen.next() {
@@ -244,6 +244,47 @@ impl GameState {
             Some(mv) => self.board.move_to_uci(&mv),
             None => "0000".to_string()
         }
+    }
+
+    pub fn perft_debug(&mut self, depth: u64, print: bool) -> u64 {
+        if depth == 0 {
+            return 1;
+        }
+
+        let color = self.side_to_move;
+        let moves = self.board.generate_moves(color);
+
+        if print {
+            println!("Depth {}: {} moves", depth, moves.len());
+        }
+
+        let mut total_nodes = 0;
+
+        for mv in moves {
+            self.board.make_move(&mv);
+            self.side_to_move = self.side_to_move.opposite();
+
+            let nodes = if depth == 1 {
+                1
+            } else {
+                self.perft_debug(depth - 1, false)
+            };
+
+            if print {
+                println!("{}: {}", self.board.move_to_uci(&mv), nodes);
+            }
+
+            total_nodes += nodes;
+
+            self.side_to_move = self.side_to_move.opposite();
+            self.board.unmake_move(&mv);
+        }
+
+        if print {
+            println!("Nodes searched: {}", total_nodes);
+        }
+
+        total_nodes
     }
 
     pub fn print_board(&self) {

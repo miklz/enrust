@@ -11,6 +11,15 @@ enum PieceType { King, Queen, Rook, Bishop, Knight, Pawn }
 #[derive(Clone)]
 pub enum Color { White, Black }
 
+impl Color {
+    pub fn opposite(&self) -> Color {
+        match self {
+            Color::White => Color::Black,
+            Color::Black => Color::White,
+        }
+    }
+}
+
 #[repr(u8)]
 #[derive(Copy)]
 #[derive(Clone)]
@@ -413,28 +422,6 @@ impl ChessBoard {
         chess_square % self.board_width + 1
     }
 
-    fn is_light_square_8x8(square: i16) -> bool {
-        let rank = square / 8;
-        let file = square % 8;
-
-        (rank + file) % 2 != 0
-    }
-
-    fn is_dark_square_8x8(square: i16) -> bool {
-        !Self::is_light_square_8x8(square)
-    }
-
-    fn is_light_square(&self, square: i16) -> bool {
-        let rank = self.square_rank(square);
-        let file = self.square_file(square);
-
-        (rank + file) % 2 != 0
-    }
-
-    fn is_dark_square(&self, square: i16) -> bool {
-        !self.is_light_square(square)
-    }
-
     fn map_inner_to_outer_board(&self, square: i16) -> i16 {
         // We have a larger board with sentinel squares around the edges.
         // This function converts a standard 0-63 chess square to its position
@@ -552,7 +539,6 @@ impl ChessBoard {
 
         // Promotion is undone automatically
         self.set_piece_on_square(mv.piece, mv.from);
-
         self.piece_list.unmake_move(&mv);
     }
 
@@ -603,11 +589,10 @@ impl ChessBoard {
         }
     }
 
-    /*
-    fn generate_moves(&self, color: Color) -> u64 {
-        
+    pub fn generate_moves(&mut self, color: Color) -> Vec<Move> {
+        let mut board_copy = self.clone();
+        self.piece_list.generate_legal_moves(&mut board_copy, color)
     }
-    */
 }
 
 impl Default for ChessBoard {

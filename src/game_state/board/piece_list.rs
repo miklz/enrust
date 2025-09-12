@@ -37,6 +37,8 @@ impl PieceList {
             Color::White => {
                 if let Some(&white_king) = self.white_king_list.get(0) {
                     if self.is_square_attacked(chess_board, white_king, Color::Black) {
+                        chess_board.unmake_move(&mv);
+                        self.unmake_move(&mv);
                         return false;
                     }
                 }
@@ -44,6 +46,8 @@ impl PieceList {
             Color::Black => {
                 if let Some(&black_king) = self.black_king_list.get(0) {
                     if self.is_square_attacked(chess_board, black_king, Color::White) {
+                        chess_board.unmake_move(&mv);
+                        self.unmake_move(&mv);
                         return false;
                     }
                 }
@@ -209,7 +213,7 @@ impl PieceList {
                 let mut position = square;
                 loop {
                     position += ray;
-                    
+
                     let target = chess_board.get_piece_on_square(position);
                     if target.is_empty() {
                         moves.push(chess_board.create_move(
@@ -298,14 +302,14 @@ impl PieceList {
         };
 
         for &square in pawn_list {
-            let target = chess_board.get_piece_on_square(square + direction);
-            if target.is_empty() {
+            let first_target = chess_board.get_piece_on_square(square + direction);
+            if first_target.is_empty() {
                 if square + direction != promotion_rank {
                     moves.push(chess_board.create_pawn_move(
                         square,
                         square + direction,
                         pawn,
-                        target,
+                        first_target,
                         None,
                         false,
                     ));
@@ -315,7 +319,7 @@ impl PieceList {
                             square,
                             square + direction,
                             pawn,
-                            target,
+                            first_target,
                             Some(promotion),
                             false,
                         ));
@@ -393,7 +397,7 @@ impl PieceList {
 
             let target = chess_board.get_piece_on_square(square + 2 * direction);
             if (color == Color::White) && (chess_board.square_rank(square) == 2) {
-                if target.is_empty() {
+                if first_target.is_empty() && target.is_empty() {
                     moves.push(chess_board.create_pawn_move(
                         square,
                         square + 2 * direction,
@@ -406,7 +410,7 @@ impl PieceList {
             }
 
             if (color == Color::Black) && (chess_board.square_rank(square) == 7) {
-                if target.is_empty() {
+                if first_target.is_empty() && target.is_empty() {
                     moves.push(chess_board.create_pawn_move(
                         square,
                         square + 2 * direction,
@@ -445,11 +449,11 @@ impl PieceList {
         // Kingside castling
         if (color == Color::White && castling_rights.white_kingside) ||
            (color == Color::Black && castling_rights.black_kingside) {
-            
+
             if self.can_castle_kingside(chess_board, color, king_square, rook_kingside) {
                 let king_to = king_square + 2; // g1 or g8
                 let rook_to = king_square + 1; // f1 or f8
-                
+
                 moves.push(chess_board.create_castling_move(
                     king_square,
                     king_to,
@@ -463,11 +467,11 @@ impl PieceList {
         // Queenside castling
         if (color == Color::White && castling_rights.white_queenside) ||
            (color == Color::Black && castling_rights.black_queenside) {
-            
+
             if self.can_castle_queenside(chess_board, color, king_square, rook_queenside) {
                 let king_to = king_square - 2; // c1 or c8
                 let rook_to = king_square - 1; // d1 or d8
-                
+
                 moves.push(chess_board.create_castling_move(
                     king_square,
                     king_to,
@@ -529,7 +533,7 @@ impl PieceList {
         if mv.en_passant {
             let capture_square = if mv.piece.is_white() {
                 mv.to - 10 // Todo: think of a better way to pass the board width
-            } else { 
+            } else {
                 mv.to + 10
             };
             let captured_pawn = if mv.piece.is_white() {
@@ -542,11 +546,11 @@ impl PieceList {
 
         // Move the piece
         self.remove_piece(mv.piece, mv.from);
-        
+
         // Add the piece to its new location (or promoted piece)
         let final_piece = mv.promotion.unwrap_or(mv.piece);
         self.add_piece(final_piece, mv.to);
-        
+
         // Handle castling
         if let Some(castling) = &mv.castling {
             self.remove_piece(castling.rook_piece, castling.rook_from);
@@ -554,37 +558,37 @@ impl PieceList {
         }
     }
 
-    pub fn unmake_move(&mut self, mv: &Move) {   
-
-        if mv.captured_piece != Piece::EmptySquare && mv.captured_piece != Piece::SentinelSquare {
-            self.add_piece(mv.captured_piece, mv.to);
-        }
-
-        if mv.en_passant {
-            let capture_square = if mv.piece.is_white() {
-                mv.to - 10 // Todo: think of a better way to pass the board width
-            } else { 
-                mv.to + 10
-            };
-            let captured_pawn = if mv.piece.is_white() {
-                Piece::BlackPawn
-            } else {
-                Piece::WhitePawn
-            };
-            self.add_piece(captured_pawn, capture_square);
-        }
-        
-        // Add the piece to its new location (or promoted piece)
-        let final_piece = mv.promotion.unwrap_or(mv.piece);
-
-        // Move the piece
-        self.remove_piece(final_piece, mv.to);
-        self.add_piece(mv.piece, mv.from);
-        
-        // Handle castling
+    pub fn unmake_move(&mut self, mv: &Move) {
+        // 1. Handle castling first
         if let Some(castling) = &mv.castling {
-            self.remove_piece(castling.rook_piece, castling.rook_to);
+            if !self.remove_piece(castling.rook_piece, castling.rook_to) {
+                println!("ERROR: Could not remove rook from {}", castling.rook_to);
+            }
             self.add_piece(castling.rook_piece, castling.rook_from);
+        }
+
+        // 2. Handle en passant
+        if mv.en_passant {
+            let capture_square = if mv.piece.is_white() { mv.to - 10 } else { mv.to + 10 };
+            let captured_pawn = if mv.piece.is_white() { Piece::BlackPawn } else { Piece::WhitePawn };
+
+            if !self.remove_piece(captured_pawn, capture_square) {
+                println!("ERROR: Could not remove en passant pawn from {}", capture_square);
+            }
+        }
+
+        // 3. Remove moved piece (handle promotion)
+        let final_piece = mv.promotion.unwrap_or(mv.piece);
+        if !self.remove_piece(final_piece, mv.to) {
+            println!("ERROR: Could not remove moved piece {} from {}", final_piece.print_piece(), mv.to);
+        }
+
+        // 4. Add back the original piece
+        self.add_piece(mv.piece, mv.from);
+
+        // 5. Restore captured piece (skip for en passant)
+        if !mv.en_passant && mv.captured_piece.is_valid_piece() {
+            self.add_piece(mv.captured_piece, mv.to);
         }
     }
 
@@ -600,7 +604,7 @@ impl PieceList {
                 }
             }
         }
-        
+
         // Place pieces
         place_pieces(&mut board, &self.white_king_list, 'K');
         place_pieces(&mut board, &self.white_queen_list, 'Q');
@@ -608,18 +612,18 @@ impl PieceList {
         place_pieces(&mut board, &self.white_bishop_list, 'B');
         place_pieces(&mut board, &self.white_knight_list, 'N');
         place_pieces(&mut board, &self.white_pawn_list, 'P');
-        
+
         place_pieces(&mut board, &self.black_king_list, 'k');
         place_pieces(&mut board, &self.black_queen_list, 'q');
         place_pieces(&mut board, &self.black_rook_list, 'r');
         place_pieces(&mut board, &self.black_bishop_list, 'b');
         place_pieces(&mut board, &self.black_knight_list, 'n');
         place_pieces(&mut board, &self.black_pawn_list, 'p');
-        
+
         // Print the standard chess board
         println!("\nStandard Chess Board (from Piece Lists):");
         println!("========================================");
-        
+
         for rank in (0..8).rev() {
             print!("{} │ ", rank + 1);
             for file in 0..8 {
@@ -628,30 +632,30 @@ impl PieceList {
             }
             println!("│");
         }
-        
+
         println!("  └─────────────────");
         println!("    a b c d e f g h");
     }
-    
+
     // Debug function to show all piece lists
     pub fn debug_print(&self) {
         println!("\nPiece List Contents:");
         println!("========================================");
-        
+
         fn print_list(name: &str, list: &Vec<i16>) {
             let squares: Vec<String> = list.iter()
                 .map(|&sq| format!("{}", sq))
                 .collect();
             println!("{:20}: {}", name, squares.join(" "));
         }
-        
+
         print_list("White Kings", &self.white_king_list);
         print_list("White Queens", &self.white_queen_list);
         print_list("White Rooks", &self.white_rook_list);
         print_list("White Light Bishops", &self.white_bishop_list);
         print_list("White Knights", &self.white_knight_list);
         print_list("White Pawns", &self.white_pawn_list);
-        
+
         print_list("Black Kings", &self.black_king_list);
         print_list("Black Queens", &self.black_queen_list);
         print_list("Black Rooks", &self.black_rook_list);
@@ -670,16 +674,23 @@ impl PieceList {
             }
         }
     }
-    
-    fn remove_piece(&mut self, piece: Piece, square: i16) {
+
+    fn remove_piece(&mut self, piece: Piece, square: i16) -> bool {
         let list = self.get_list_mut(piece);
         if let Some(list) = list {
-            if let Some(index) = list.iter().position(|&s| s == square) {
-                list.remove(index);
+            match list.binary_search(&square) {
+                Ok(pos) => {
+                    list.remove(pos);
+                    return true; // Piece found and removed
+                },
+                Err(_) => {
+                    return false; // Doesn't exist (shouldn't happen)
+                },
             }
         }
+        false // Piece list not found
     }
-    
+
     fn get_list_mut(&mut self, piece: Piece) -> Option<&mut Vec<i16>> {
         match piece {
             Piece::WhitePawn => Some(&mut self.white_pawn_list),
@@ -745,7 +756,7 @@ impl PieceList {
         let mut position = from;
         while position != to {
             position += direction;
-            
+
             let piece = chess_board.get_piece_on_square(position);
             if piece.is_empty() {
                 continue;
@@ -788,7 +799,7 @@ impl PieceList {
         let mut position = from;
         while position != to {
             position += direction;
-            
+
             let piece = chess_board.get_piece_on_square(position);
             if piece.is_empty() {
                 continue;
@@ -896,7 +907,7 @@ impl PieceList {
         let row_diff = row1.abs_diff(row2);
         let col_diff = col1.abs_diff(col2);
 
-        if col_diff > 1 && row_diff > 2 {
+        if col_diff > 1 || row_diff > 2 {
             // Capture can only happen with a square distance,
             // and the first move can be at most two squares.
             return false;
@@ -955,7 +966,7 @@ impl PieceList {
         if chess_board.get_piece_on_square(king_square) != if color == Color::White { Piece::WhiteKing } else { Piece::BlackKing } {
             return false;
         }
-        
+
         if chess_board.get_piece_on_square(rook_square) != if color == Color::White { Piece::WhiteRook } else { Piece::BlackRook } {
             return false;
         }
@@ -993,7 +1004,7 @@ impl PieceList {
         if chess_board.get_piece_on_square(king_square) != if color == Color::White { Piece::WhiteKing } else { Piece::BlackKing } {
             return false;
         }
-        
+
         if chess_board.get_piece_on_square(rook_square) != if color == Color::White { Piece::WhiteRook } else { Piece::BlackRook } {
             return false;
         }
