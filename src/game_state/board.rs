@@ -3,13 +3,21 @@ pub mod piece_list;
 use crate::game_state::board::piece_list::PieceList;
 
 #[derive(PartialEq)]
-enum PieceType { King, Queen, Rook, Bishop, Knight, Pawn }
+enum PieceType {
+    King,
+    Queen,
+    Rook,
+    Bishop,
+    Knight,
+    Pawn,
+}
 
 // We derive PartialEq so we can use == and != for color types in our code
-#[derive(PartialEq)]
-#[derive(Copy)]
-#[derive(Clone)]
-pub enum Color { White, Black }
+#[derive(PartialEq, Copy, Clone)]
+pub enum Color {
+    White,
+    Black,
+}
 
 impl Color {
     pub fn opposite(&self) -> Color {
@@ -21,9 +29,7 @@ impl Color {
 }
 
 #[repr(u8)]
-#[derive(Copy)]
-#[derive(Clone)]
-#[derive(PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum Piece {
     EmptySquare = 0,
     WhitePawn,
@@ -52,12 +58,12 @@ impl Piece {
 
     fn get_type(self) -> PieceType {
         match self {
-            Piece::WhitePawn    | Piece::BlackPawn      => PieceType::Pawn,
-            Piece::WhiteKnight  | Piece::BlackKnight    => PieceType::Knight,
-            Piece::WhiteBishop  | Piece::BlackBishop    => PieceType::Bishop,
-            Piece::WhiteRook    | Piece::BlackRook      => PieceType::Rook,
-            Piece::WhiteQueen   | Piece::BlackQueen     => PieceType::Queen,
-            Piece::WhiteKing    | Piece::BlackKing      => PieceType::King,
+            Piece::WhitePawn | Piece::BlackPawn => PieceType::Pawn,
+            Piece::WhiteKnight | Piece::BlackKnight => PieceType::Knight,
+            Piece::WhiteBishop | Piece::BlackBishop => PieceType::Bishop,
+            Piece::WhiteRook | Piece::BlackRook => PieceType::Rook,
+            Piece::WhiteQueen | Piece::BlackQueen => PieceType::Queen,
+            Piece::WhiteKing | Piece::BlackKing => PieceType::King,
             _ => panic!("Invalid piece"),
         }
     }
@@ -117,20 +123,20 @@ impl Piece {
 pub struct Move {
     pub from: i16,
     pub to: i16,
-    pub piece: Piece,                       // The moving piece
-    pub captured_piece: Piece,              // Piece captured (Empty squares count as pieces)
-    pub promotion: Option<Piece>,           // Promotion piece (if any)
-    pub castling: Option<CastlingInfo>,     // Castling information
-    pub en_passant: bool,                   // Whether this is an en passant capture
-    pub previous_en_passant: Option<i16>,   // Previous en passant target
+    pub piece: Piece,                     // The moving piece
+    pub captured_piece: Piece,            // Piece captured (Empty squares count as pieces)
+    pub promotion: Option<Piece>,         // Promotion piece (if any)
+    pub castling: Option<CastlingInfo>,   // Castling information
+    pub en_passant: bool,                 // Whether this is an en passant capture
+    pub previous_en_passant: Option<i16>, // Previous en passant target
 }
 
 #[derive(Clone)]
 pub struct CastlingRights {
-    pub white_queenside : bool,
-    pub white_kingside  : bool,
-    pub black_queenside : bool,
-    pub black_kingside  : bool,
+    pub white_queenside: bool,
+    pub white_kingside: bool,
+    pub black_queenside: bool,
+    pub black_kingside: bool,
 }
 
 #[derive(Clone)]
@@ -142,16 +148,16 @@ pub struct CastlingInfo {
 
 #[derive(Clone)]
 pub struct ChessBoard {
-    board_width     : i16,
-    board_height    : i16,
-    board_squares   : [Piece;12*10],
-    
+    board_width: i16,
+    board_height: i16,
+    board_squares: [Piece; 12 * 10],
+
     // Which square is el passant valid
     en_passant_target: Option<i16>,
 
-    castling_rights : CastlingRights,
+    castling_rights: CastlingRights,
 
-    piece_list      : PieceList,
+    piece_list: PieceList,
 }
 
 impl ChessBoard {
@@ -162,16 +168,32 @@ impl ChessBoard {
                 let (rook_from, rook_to) = if from == 4 { (7, 5) } else { (63, 61) };
                 let rook_from = self.map_inner_to_outer_board(rook_from);
                 let rook_to = self.map_inner_to_outer_board(rook_to);
-                let rook_piece = if piece.is_white() { Piece::WhiteRook } else { Piece::BlackRook };
-                return Some(CastlingInfo { rook_from, rook_to, rook_piece });
+                let rook_piece = if piece.is_white() {
+                    Piece::WhiteRook
+                } else {
+                    Piece::BlackRook
+                };
+                return Some(CastlingInfo {
+                    rook_from,
+                    rook_to,
+                    rook_piece,
+                });
             }
             // Queenside castling: e1-c1 or e8-c8
             else if (from == 4 && to == 2) || (from == 60 && to == 58) {
                 let (rook_from, rook_to) = if from == 4 { (0, 3) } else { (56, 59) };
                 let rook_from = self.map_inner_to_outer_board(rook_from);
                 let rook_to = self.map_inner_to_outer_board(rook_to);
-                let rook_piece = if piece.is_white() { Piece::WhiteRook } else { Piece::BlackRook };
-                return Some(CastlingInfo { rook_from, rook_to, rook_piece });
+                let rook_piece = if piece.is_white() {
+                    Piece::WhiteRook
+                } else {
+                    Piece::BlackRook
+                };
+                return Some(CastlingInfo {
+                    rook_from,
+                    rook_to,
+                    rook_piece,
+                });
             }
         }
         None
@@ -187,7 +209,7 @@ impl ChessBoard {
                 } else {
                     ep_target + self.board_width // Black pawn was one rank above
                 };
-                
+
                 return from == expected_from && to == ep_target;
             }
         }
@@ -196,10 +218,9 @@ impl ChessBoard {
 
     /* Convert uci algebraic notation format:
      * <from square><to square>[<promoted to>]
-     * to Move struct 
+     * to Move struct
      */
     fn parse_algebraic_move(&self, uci_notation: &str) -> Option<Move> {
-
         /* Convert <rank><file> to 8x8 square */
         fn notation_to_square(square_notation: &str) -> Option<i16> {
             if square_notation.len() != 2 {
@@ -231,17 +252,33 @@ impl ChessBoard {
         if moving_piece == Piece::EmptySquare {
             return None;
         }
-        
+
         // Get captured piece
         let captured_piece = self.get_piece_on_square(to);
 
         let promotion = if uci_notation.len() == 5 {
             match &uci_notation[4..5] {
-                "q" => Some(if moving_piece.is_white() { Piece::WhiteQueen } else { Piece::BlackQueen }),
-                "r" => Some(if moving_piece.is_white() { Piece::WhiteRook } else { Piece::BlackRook }),
-                "n" => Some(if moving_piece.is_white() { Piece::WhiteKnight } else { Piece::BlackKnight }),
-                "b" => Some(if moving_piece.is_white() { Piece::WhiteBishop } else { Piece::BlackBishop }),
-                _   => None,
+                "q" => Some(if moving_piece.is_white() {
+                    Piece::WhiteQueen
+                } else {
+                    Piece::BlackQueen
+                }),
+                "r" => Some(if moving_piece.is_white() {
+                    Piece::WhiteRook
+                } else {
+                    Piece::BlackRook
+                }),
+                "n" => Some(if moving_piece.is_white() {
+                    Piece::WhiteKnight
+                } else {
+                    Piece::BlackKnight
+                }),
+                "b" => Some(if moving_piece.is_white() {
+                    Piece::WhiteBishop
+                } else {
+                    Piece::BlackBishop
+                }),
+                _ => None,
             }
         } else {
             None
@@ -270,7 +307,7 @@ impl ChessBoard {
     pub fn move_to_uci(&self, mv: &Move) -> String {
         let from_square = self.square_to_notation(mv.from);
         let to_square = self.square_to_notation(mv.to);
-        
+
         let promotion_suffix = if let Some(promo_piece) = mv.promotion {
             match promo_piece {
                 Piece::WhiteQueen | Piece::BlackQueen => "q",
@@ -282,23 +319,31 @@ impl ChessBoard {
         } else {
             ""
         };
-        
+
         format!("{}{}{}", from_square, to_square, promotion_suffix)
     }
-    
+
     fn square_to_notation(&self, square: i16) -> String {
         // Convert from your internal 0-63 representation to algebraic notation
         let chess_square = self.map_to_standard_chess_board(square);
         let file = (chess_square % 8) as u8;
         let rank = (chess_square / 8) as u8;
-        
+
         let file_char = (b'a' + file) as char;
         let rank_char = (b'1' + rank) as char;
-        
+
         format!("{}{}", file_char, rank_char)
     }
 
-    fn create_pawn_move(&self, from: i16, to: i16, piece: Piece, captured: Piece, promotion: Option<Piece>, en_passant: bool) -> Move {
+    fn create_pawn_move(
+        &self,
+        from: i16,
+        to: i16,
+        piece: Piece,
+        captured: Piece,
+        promotion: Option<Piece>,
+        en_passant: bool,
+    ) -> Move {
         Move {
             from,
             to,
@@ -324,8 +369,19 @@ impl ChessBoard {
         }
     }
 
-    fn create_castling_move(&self, king_from: i16, king_to: i16, king_piece: Piece, rook_from: i16, rook_to: i16) -> Move {
-        let color = if king_from == 4 { Color::White } else { Color::Black };
+    fn create_castling_move(
+        &self,
+        king_from: i16,
+        king_to: i16,
+        king_piece: Piece,
+        rook_from: i16,
+        rook_to: i16,
+    ) -> Move {
+        let color = if king_from == 4 {
+            Color::White
+        } else {
+            Color::Black
+        };
         Move {
             from: king_from,
             to: king_to,
@@ -335,7 +391,11 @@ impl ChessBoard {
             castling: Some(CastlingInfo {
                 rook_from,
                 rook_to,
-                rook_piece: if color == Color::White { Piece::WhiteRook } else { Piece::BlackRook },
+                rook_piece: if color == Color::White {
+                    Piece::WhiteRook
+                } else {
+                    Piece::BlackRook
+                },
             }),
             en_passant: false,
             previous_en_passant: self.get_en_passant_square(),
@@ -355,7 +415,7 @@ impl ChessBoard {
         // This works because each complete row spans board_width elements.
         //
         // Example (with board_width = 10, including sentinels):
-        // 
+        //
         //  Index layout for a 10x10 board (only a portion shown):
         //      20 21 22 23 24 25 26 27 28 29  ← rank 2
         //      30 31 32 33 34 35 36 37 38 39  ← rank 3
@@ -371,7 +431,7 @@ impl ChessBoard {
         // This is because squares in the same vertical column have the same remainder when divided by board_width.
 
         // Example (with board_width = 10, including sentinels):
-        // 
+        //
         //  Index layout for a 10x10 board (only a portion shown):
         //      20 21 22 23 24 25 26 27 28 29  ← rank 2
         //      30 31 32 33 34 35 36 37 38 39  ← rank 3
@@ -426,20 +486,20 @@ impl ChessBoard {
         // We have a larger board with sentinel squares around the edges.
         // This function converts a standard 0-63 chess square to its position
         // in our internal board representation.
-        
+
         // Calculate the starting position of the inner 8×8 board within our larger board
-        let vertical_padding = (self.board_height - 8) / 2;   // Rows below the chess board
-        let horizontal_padding = (self.board_width - 8) / 2;  // Columns to the left
-        
+        let vertical_padding = (self.board_height - 8) / 2; // Rows below the chess board
+        let horizontal_padding = (self.board_width - 8) / 2; // Columns to the left
+
         let board_offset = vertical_padding * self.board_width + horizontal_padding;
-        
+
         // Convert standard chess coordinates to internal board coordinates
         let chess_rank = square / 8;
         let chess_file = square % 8;
-        
+
         // Internal position = (rows above) + (chess rank) × (board width) + (columns left) + (chess file)
         let internal_square = self.board_width * chess_rank + chess_file + board_offset;
-        
+
         internal_square as i16
     }
 
@@ -449,14 +509,14 @@ impl ChessBoard {
         let rank = square / board_width;
         let file = square % board_width;
 
-        let chess_rank = rank - 2;  // Convert from 2-9 to 0-7
-        let chess_file = file - 1;  // Convert from 1-8 to 0-7
-            
+        let chess_rank = rank - 2; // Convert from 2-9 to 0-7
+        let chess_file = file - 1; // Convert from 1-8 to 0-7
+
         (chess_rank * 8 + chess_file) as usize
     }
 
     /* We expect an 8x8 array of pieces*/
-    pub fn set_board(&mut self, board_position : &[Piece; 64]) {
+    pub fn set_board(&mut self, board_position: &[Piece; 64]) {
         // Set all squares to invalid
         for square in self.board_squares.iter_mut() {
             *square = Piece::SentinelSquare;
@@ -506,7 +566,7 @@ impl ChessBoard {
         } else {
             self.set_piece_on_square(piece, mv.to);
         }
-        
+
         // When a move is made, the previous square of the piece is cleared
         self.set_piece_on_square(Piece::EmptySquare, mv.from);
 
@@ -521,7 +581,7 @@ impl ChessBoard {
         if mv.en_passant {
             let capture_square = if mv.piece.is_white() {
                 mv.to - self.board_width
-            } else { 
+            } else {
                 mv.to + self.board_width
             };
             let captured_pawn = if mv.piece.is_white() {
@@ -546,7 +606,9 @@ impl ChessBoard {
         // We clone the board so that the piece-list
         // can do and undo moves to check for legal moves
         let mut board_copy = self.clone();
-        let moves = self.piece_list.generate_legal_moves(&mut board_copy, side_to_move);
+        let moves = self
+            .piece_list
+            .generate_legal_moves(&mut board_copy, side_to_move);
 
         if moves.is_empty() {
             None
@@ -573,7 +635,7 @@ impl ChessBoard {
         }
 
         // Print file letters
-        
+
         println!("   └─────────────────────");
         println!("     z a b c d e f g h i");
 
@@ -600,12 +662,17 @@ impl Default for ChessBoard {
         ChessBoard {
             board_width: 10,
             board_height: 12,
-            board_squares: [Piece::SentinelSquare; 10*12],
+            board_squares: [Piece::SentinelSquare; 10 * 12],
             en_passant_target: None,
 
-            castling_rights : CastlingRights {white_kingside: false, white_queenside: false, black_kingside: false, black_queenside: false},
+            castling_rights: CastlingRights {
+                white_kingside: false,
+                white_queenside: false,
+                black_kingside: false,
+                black_queenside: false,
+            },
 
-            piece_list: PieceList::default()
+            piece_list: PieceList::default(),
         }
     }
 }

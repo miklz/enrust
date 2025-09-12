@@ -15,7 +15,7 @@ fn handle_go_command(game_state: &mut GameState, tokens: &mut SplitWhitespace) {
     let mut sc = SearchConfiguration::new();
     while let Some(token) = tokens.next() {
         match token {
-            "wtime" =>  {
+            "wtime" => {
                 if let Some(wtime_str) = tokens.next() {
                     if let Ok(wtime) = wtime_str.parse::<u64>() {
                         sc.wtime = Some(wtime);
@@ -29,14 +29,14 @@ fn handle_go_command(game_state: &mut GameState, tokens: &mut SplitWhitespace) {
                     }
                 }
             }
-            "winc"  => {
+            "winc" => {
                 if let Some(winc_str) = tokens.next() {
                     if let Ok(winc) = winc_str.parse::<u64>() {
                         sc.winc = Some(winc);
                     }
                 }
             }
-            "binc"  => {
+            "binc" => {
                 if let Some(binc_str) = tokens.next() {
                     if let Ok(binc) = binc_str.parse::<u64>() {
                         sc.binc = Some(binc);
@@ -108,7 +108,7 @@ fn handle_go_command(game_state: &mut GameState, tokens: &mut SplitWhitespace) {
             _ => {}
         }
     }
-    
+
     game_state.set_time_control(&sc);
 
     println!("bestmove {}", game_state.search());

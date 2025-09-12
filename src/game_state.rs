@@ -1,9 +1,9 @@
 pub mod board;
+pub use crate::game_state::board::CastlingRights;
 pub use crate::game_state::board::ChessBoard;
 pub use crate::game_state::board::Color;
 pub use crate::game_state::board::Move;
 pub use crate::game_state::board::Piece;
-pub use crate::game_state::board::CastlingRights;
 
 #[derive(Clone)]
 pub struct SearchConfiguration {
@@ -63,11 +63,11 @@ impl SearchConfiguration {
 }
 
 pub struct GameState {
-    ply_moves       : u64,
-    side_to_move    : Color,
-    search_control  : Option<SearchConfiguration>,
+    ply_moves: u64,
+    side_to_move: Color,
+    search_control: Option<SearchConfiguration>,
 
-    board           : ChessBoard,
+    board: ChessBoard,
 }
 
 impl GameState {
@@ -119,10 +119,10 @@ impl GameState {
                         'b' => Piece::BlackBishop,
                         'q' => Piece::BlackQueen,
                         'k' => Piece::BlackKing,
-                        _   => {
+                        _ => {
                             println!("Invalid FEN character {}\n", c);
-                            return false
-                        },
+                            return false;
+                        }
                     };
 
                     let board_index = (7 - rank_index) * 8 + file_index;
@@ -141,7 +141,7 @@ impl GameState {
             match side_to_move {
                 "w" => self.side_to_move = Color::White,
                 "b" => self.side_to_move = Color::Black,
-                _   => return false,
+                _ => return false,
             }
         } else {
             return false;
@@ -161,12 +161,17 @@ impl GameState {
                     'Q' => white_queenside = true,
                     'k' => black_kingside = true,
                     'q' => black_queenside = true,
-                    _   => return false
+                    _ => return false,
                 }
             }
         }
 
-        let castling_rights = CastlingRights { white_queenside, white_kingside, black_queenside, black_kingside };
+        let castling_rights = CastlingRights {
+            white_queenside,
+            white_kingside,
+            black_queenside,
+            black_kingside,
+        };
         self.board.set_castling_rights(&castling_rights);
 
         if let Some(en_passant) = fen.next() {
@@ -203,7 +208,6 @@ impl GameState {
             return false;
         }
 
-
         // Full move
         if let Some(full_moves_str) = fen.next() {
             if let Ok(full_moves) = full_moves_str.parse::<u64>() {
@@ -228,9 +232,13 @@ impl GameState {
         match self.create_move(algebraic_notation) {
             Some(mv) => {
                 self.board.make_move(&mv);
-                self.side_to_move = if self.side_to_move == Color::White { Color::Black } else { Color::White }
-            },
-            None => ()
+                self.side_to_move = if self.side_to_move == Color::White {
+                    Color::Black
+                } else {
+                    Color::White
+                }
+            }
+            None => (),
         }
     }
 
@@ -242,7 +250,7 @@ impl GameState {
 
         match self.board.search(self.side_to_move) {
             Some(mv) => self.board.move_to_uci(&mv),
-            None => "0000".to_string()
+            None => "0000".to_string(),
         }
     }
 
@@ -298,7 +306,7 @@ impl Default for GameState {
             ply_moves: 0,
             side_to_move: Color::White,
             search_control: None,
-            board: ChessBoard::default()
+            board: ChessBoard::default(),
         }
     }
 }
