@@ -128,6 +128,7 @@ pub struct Move {
     pub promotion: Option<Piece>,         // Promotion piece (if any)
     pub castling: Option<CastlingInfo>,   // Castling information
     pub en_passant: bool,                 // Whether this is an en passant capture
+    pub en_passant_square: Option<i16>,   // Set when pawn moves two squares
     pub previous_en_passant: Option<i16>, // Previous en passant target
 }
 
@@ -202,7 +203,7 @@ impl ChessBoard {
     fn detect_en_passant(&self, piece: Piece, from: i16, to: i16, captured: Piece) -> bool {
         // En passant: pawn moving diagonally to empty square when en passant target is set
         if piece.get_type() == PieceType::Pawn && captured == Piece::EmptySquare {
-            if let Some(ep_target) = self.get_en_passant_square() {
+            if let Some(ep_target) = self.get_en_passant_target() {
                 // Check if this is an en passant capture
                 let expected_from = if piece.is_white() {
                     ep_target - self.board_width // White pawn was one rank below
@@ -296,7 +297,8 @@ impl ChessBoard {
             promotion,
             castling,
             en_passant,
-            previous_en_passant: self.get_en_passant_square(),
+            en_passant_square: None,
+            previous_en_passant: self.get_en_passant_target(),
         })
     }
 
@@ -343,6 +345,7 @@ impl ChessBoard {
         captured: Piece,
         promotion: Option<Piece>,
         en_passant: bool,
+        en_passant_square: Option<i16>,
     ) -> Move {
         Move {
             from,
@@ -352,7 +355,8 @@ impl ChessBoard {
             promotion,
             castling: None,
             en_passant,
-            previous_en_passant: self.get_en_passant_square(),
+            en_passant_square,
+            previous_en_passant: self.get_en_passant_target(),
         }
     }
 
@@ -365,7 +369,8 @@ impl ChessBoard {
             promotion: None,
             castling: None,
             en_passant: false,
-            previous_en_passant: self.get_en_passant_square(),
+            en_passant_square: None,
+            previous_en_passant: self.get_en_passant_target(),
         }
     }
 
@@ -398,7 +403,8 @@ impl ChessBoard {
                 },
             }),
             en_passant: false,
-            previous_en_passant: self.get_en_passant_square(),
+            en_passant_square: None,
+            previous_en_passant: self.get_en_passant_target(),
         }
     }
 
@@ -462,8 +468,12 @@ impl ChessBoard {
         // ensures the movement was exactly diagonal.
     }
 
-    fn get_en_passant_square(&self) -> Option<i16> {
+    fn get_en_passant_target(&self) -> Option<i16> {
         self.en_passant_target
+    }
+
+    fn set_en_passant_target(&mut self, square: Option<i16>) {
+        self.en_passant_target = square;
     }
 
     fn square_rank(&self, square: i16) -> i16 {
@@ -570,6 +580,9 @@ impl ChessBoard {
         // When a move is made, the previous square of the piece is cleared
         self.set_piece_on_square(Piece::EmptySquare, mv.from);
 
+        // When pawn moves two squares we update the en passant square
+        self.set_en_passant_target(mv.en_passant_square);
+
         // Update piece list
         self.piece_list.make_move(&mv);
     }
@@ -599,6 +612,10 @@ impl ChessBoard {
 
         // Promotion is undone automatically
         self.set_piece_on_square(mv.piece, mv.from);
+
+        // Restore en passant square to previous state
+        self.set_en_passant_target(mv.previous_en_passant);
+
         self.piece_list.unmake_move(&mv);
     }
 

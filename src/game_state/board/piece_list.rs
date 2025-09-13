@@ -289,8 +289,8 @@ impl PieceList {
         };
 
         let promotion_rank = match color {
-            Color::White => 8,
-            Color::Black => 1,
+            Color::White => 9,
+            Color::Black => 2,
         };
 
         for &square in pawn_list {
@@ -304,6 +304,7 @@ impl PieceList {
                         first_target,
                         None,
                         false,
+                        None,
                     ));
                 } else {
                     for promotion in promotion_pieces {
@@ -314,6 +315,7 @@ impl PieceList {
                             first_target,
                             Some(promotion),
                             false,
+                            None,
                         ));
                     }
                 }
@@ -329,6 +331,7 @@ impl PieceList {
                         target,
                         None,
                         false,
+                        None,
                     ));
                 } else {
                     for promotion in promotion_pieces {
@@ -339,17 +342,19 @@ impl PieceList {
                             target,
                             Some(promotion),
                             false,
+                            None,
                         ));
                     }
                 }
-            } else if Some(square + direction + 1) == chess_board.get_en_passant_square() {
+            } else if Some(square + direction + 1) == chess_board.get_en_passant_target() {
                 moves.push(chess_board.create_pawn_move(
                     square,
                     square + direction + 1,
                     pawn,
                     target,
                     None,
-                    false,
+                    true,
+                    None,
                 ));
             }
 
@@ -363,6 +368,7 @@ impl PieceList {
                         target,
                         None,
                         false,
+                        None,
                     ));
                 } else {
                     for promotion in promotion_pieces {
@@ -373,10 +379,11 @@ impl PieceList {
                             target,
                             Some(promotion),
                             false,
+                            None,
                         ));
                     }
                 }
-            } else if Some(square + direction - 1) == chess_board.get_en_passant_square() {
+            } else if Some(square + direction - 1) == chess_board.get_en_passant_target() {
                 moves.push(chess_board.create_pawn_move(
                     square,
                     square + direction - 1,
@@ -384,6 +391,7 @@ impl PieceList {
                     target,
                     None,
                     true,
+                    None,
                 ));
             }
 
@@ -397,6 +405,7 @@ impl PieceList {
                         target,
                         None,
                         false,
+                        Some(square + direction),
                     ));
                 }
             }
@@ -410,6 +419,7 @@ impl PieceList {
                         target,
                         None,
                         false,
+                        Some(square + direction),
                     ));
                 }
             }
@@ -572,12 +582,8 @@ impl PieceList {
                 Piece::WhitePawn
             };
 
-            if !self.remove_piece(captured_pawn, capture_square) {
-                println!(
-                    "ERROR: Could not remove en passant pawn from {}",
-                    capture_square
-                );
-            }
+            // Restore en passant capture
+            self.add_piece(captured_pawn, capture_square);
         }
 
         // 3. Remove moved piece (handle promotion)
@@ -927,7 +933,7 @@ impl PieceList {
         if col_diff == 1 {
             // The capture can only happen if the destination square has an oponnent piece or
             // if the el passant is valid for that square.
-            if let Some(en_passant) = chess_board.get_en_passant_square() {
+            if let Some(en_passant) = chess_board.get_en_passant_target() {
                 if piece_dest.is_opponent(moving_color) || (en_passant == to) {
                     return true;
                 } else {
