@@ -117,10 +117,6 @@ impl Piece {
     fn is_friend(self, color: Color) -> bool {
         self.is_valid_piece() && self.get_color() == color
     }
-
-    fn is_pawn(self) -> bool {
-        self.is_valid_piece() && self.get_type() == PieceType::Pawn
-    }
 }
 
 #[derive(Clone)]
@@ -322,11 +318,11 @@ impl ChessBoard {
         let to_square = self.square_to_notation(mv.to);
 
         let promotion_suffix = if let Some(promo_piece) = mv.promotion {
-            match promo_piece {
-                Piece::WhiteQueen | Piece::BlackQueen => "q",
-                Piece::WhiteRook | Piece::BlackRook => "r",
-                Piece::WhiteBishop | Piece::BlackBishop => "b",
-                Piece::WhiteKnight | Piece::BlackKnight => "n",
+            match promo_piece.get_type() {
+                PieceType::Queen => "q",
+                PieceType::Rook => "r",
+                PieceType::Bishop => "b",
+                PieceType::Knight => "n",
                 _ => "",
             }
         } else {

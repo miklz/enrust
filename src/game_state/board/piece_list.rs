@@ -2,6 +2,7 @@ use crate::game_state::board::ChessBoard;
 use crate::game_state::board::Color;
 use crate::game_state::board::Move;
 use crate::game_state::board::Piece;
+use crate::game_state::board::PieceType;
 
 #[derive(Clone)]
 pub struct PieceList {
@@ -439,16 +440,16 @@ impl PieceList {
 
         let (king_square, king_piece, rook_kingside, rook_queenside) = match color {
             Color::White => (
-                25, // e1
+                chess_board.algebraic_to_internal("e1"),
                 Piece::WhiteKing,
-                28, // h1
-                21, // a1
+                chess_board.algebraic_to_internal("h1"),
+                chess_board.algebraic_to_internal("a1"),
             ),
             Color::Black => (
-                95, // e8
+                chess_board.algebraic_to_internal("e8"),
                 Piece::BlackKing,
-                98, // h8
-                91, // a8
+                chess_board.algebraic_to_internal("h8"),
+                chess_board.algebraic_to_internal("a8"),
             ),
         };
 
@@ -669,14 +670,14 @@ impl PieceList {
         print_list("White Kings", &self.white_king_list);
         print_list("White Queens", &self.white_queen_list);
         print_list("White Rooks", &self.white_rook_list);
-        print_list("White Light Bishops", &self.white_bishop_list);
+        print_list("White Bishops", &self.white_bishop_list);
         print_list("White Knights", &self.white_knight_list);
         print_list("White Pawns", &self.white_pawn_list);
 
         print_list("Black Kings", &self.black_king_list);
         print_list("Black Queens", &self.black_queen_list);
         print_list("Black Rooks", &self.black_rook_list);
-        print_list("Black Light Bishops", &self.black_bishop_list);
+        print_list("Black Bishops", &self.black_bishop_list);
         print_list("Black Knights", &self.black_knight_list);
         print_list("Black Pawns", &self.black_pawn_list);
     }
@@ -1056,109 +1057,59 @@ impl PieceList {
     }
 
     fn is_square_attacked(&self, chess_board: &ChessBoard, square: i16, by_color: Color) -> bool {
-        // This function check if a square is attacked by any piece of the given color
-        match by_color {
-            Color::White => {
-                if let Some(queen_list) = self.get_list(Piece::WhiteQueen) {
-                    for &queen in queen_list.iter() {
-                        if Self::queen_attack(chess_board, queen, square) {
-                            return true;
-                        }
-                    }
-                }
+        let attacker_pieces = match by_color {
+            Color::White => [
+                Piece::WhiteQueen,
+                Piece::WhiteRook,
+                Piece::WhiteBishop,
+                Piece::WhiteKnight,
+                Piece::WhitePawn,
+                Piece::WhiteKing,
+            ],
+            Color::Black => [
+                Piece::BlackQueen,
+                Piece::BlackRook,
+                Piece::BlackBishop,
+                Piece::BlackKnight,
+                Piece::BlackPawn,
+                Piece::BlackKing,
+            ],
+        };
 
-                if let Some(rook_list) = self.get_list(Piece::WhiteRook) {
-                    for &rook in rook_list.iter() {
-                        if Self::rook_attack(chess_board, rook, square) {
-                            return true;
-                        }
-                    }
-                }
-
-                if let Some(bishop_list) = self.get_list(Piece::WhiteBishop) {
-                    for &bishop in bishop_list.iter() {
-                        if Self::bishop_attack(chess_board, bishop, square) {
-                            return true;
-                        }
-                    }
-                }
-
-                if let Some(knight_list) = self.get_list(Piece::WhiteKnight) {
-                    for &knight in knight_list.iter() {
-                        if Self::knight_attack(chess_board, knight, square) {
-                            return true;
-                        }
-                    }
-                }
-
-                if let Some(pawn_list) = self.get_list(Piece::WhitePawn) {
-                    for &pawn in pawn_list.iter() {
-                        if Self::pawn_attack(chess_board, pawn, square, by_color) {
-                            return true;
-                        }
-                    }
-                }
-
-                if let Some(king_list) = self.get_list(Piece::WhiteKing) {
-                    for &king in king_list.iter() {
-                        if Self::king_attack(chess_board, king, square) {
-                            return true;
-                        }
-                    }
-                }
-            }
-
-            Color::Black => {
-                if let Some(queen_list) = self.get_list(Piece::BlackQueen) {
-                    for &queen in queen_list.iter() {
-                        if Self::queen_attack(chess_board, queen, square) {
-                            return true;
-                        }
-                    }
-                }
-
-                if let Some(rook_list) = self.get_list(Piece::BlackRook) {
-                    for &rook in rook_list.iter() {
-                        if Self::rook_attack(chess_board, rook, square) {
-                            return true;
-                        }
-                    }
-                }
-
-                if let Some(bishop_list) = self.get_list(Piece::BlackBishop) {
-                    for &bishop in bishop_list.iter() {
-                        if Self::bishop_attack(chess_board, bishop, square) {
-                            return true;
-                        }
-                    }
-                }
-
-                if let Some(knight_list) = self.get_list(Piece::BlackKnight) {
-                    for &knight in knight_list.iter() {
-                        if Self::knight_attack(chess_board, knight, square) {
-                            return true;
-                        }
-                    }
-                }
-
-                if let Some(pawn_list) = self.get_list(Piece::BlackPawn) {
-                    for &pawn in pawn_list.iter() {
-                        if Self::pawn_attack(chess_board, pawn, square, by_color) {
-                            return true;
-                        }
-                    }
-                }
-
-                if let Some(king_list) = self.get_list(Piece::BlackKing) {
-                    for &king in king_list.iter() {
-                        if Self::king_attack(chess_board, king, square) {
-                            return true;
-                        }
-                    }
-                }
+        for attack_piece in attacker_pieces {
+            if self.is_attacked_by_piece(chess_board, square, attack_piece, by_color) {
+                return true;
             }
         }
 
+        false
+    }
+
+    fn is_attacked_by_piece(
+        &self,
+        chess_board: &ChessBoard,
+        square: i16,
+        attack_piece: Piece,
+        by_color: Color,
+    ) -> bool {
+        if let Some(piece_list) = self.get_list(attack_piece) {
+            for &piece_square in piece_list {
+                let attacks = match attack_piece.get_type() {
+                    PieceType::Queen => Self::queen_attack(chess_board, piece_square, square),
+                    PieceType::Rook => Self::rook_attack(chess_board, piece_square, square),
+                    PieceType::Bishop => Self::bishop_attack(chess_board, piece_square, square),
+                    PieceType::Knight => Self::knight_attack(chess_board, piece_square, square),
+                    PieceType::Pawn => {
+                        Self::pawn_attack(chess_board, piece_square, square, by_color)
+                    }
+                    PieceType::King => Self::king_attack(chess_board, piece_square, square),
+                };
+
+                if attacks {
+                    return true;
+                }
+            }
+        }
         false
     }
 }
