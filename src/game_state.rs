@@ -242,6 +242,13 @@ impl GameState {
         }
     }
 
+    pub fn generate_moves(&mut self, color: Color) -> Vec<String> {
+        let moves = self.board.generate_moves(color);
+
+        let move_ucis: Vec<String> = moves.iter().map(|mv| self.board.move_to_uci(mv)).collect();
+        move_ucis
+    }
+
     pub fn search(&mut self) -> String {
         // The pieces positions was already defined on the board and
         // the time control was set with the time requirements
