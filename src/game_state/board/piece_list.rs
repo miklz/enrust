@@ -54,6 +54,7 @@ impl PieceList {
             }
         }
 
+        //chess_board.print_board();
         chess_board.unmake_move(&mv);
         self.unmake_move(&mv);
 
@@ -289,14 +290,19 @@ impl PieceList {
         };
 
         let promotion_rank = match color {
-            Color::White => 9,
-            Color::Black => 2,
+            Color::White => chess_board.square_rank(chess_board.algebraic_to_internal("e8")),
+            Color::Black => chess_board.square_rank(chess_board.algebraic_to_internal("e1")),
+        };
+
+        let double_push_rank = match color {
+            Color::White => chess_board.square_rank(chess_board.algebraic_to_internal("e2")),
+            Color::Black => chess_board.square_rank(chess_board.algebraic_to_internal("e7")),
         };
 
         for &square in pawn_list {
             let first_target = chess_board.get_piece_on_square(square + direction);
             if first_target.is_empty() {
-                if square + direction != promotion_rank {
+                if chess_board.square_rank(square + direction) != promotion_rank {
                     moves.push(chess_board.create_pawn_move(
                         square,
                         square + direction,
@@ -323,7 +329,7 @@ impl PieceList {
 
             let target = chess_board.get_piece_on_square(square + direction + 1);
             if target.is_opponent(color) {
-                if square + direction + 1 != promotion_rank {
+                if chess_board.square_rank(square + direction + 1) != promotion_rank {
                     moves.push(chess_board.create_pawn_move(
                         square,
                         square + direction + 1,
@@ -360,7 +366,7 @@ impl PieceList {
 
             let target = chess_board.get_piece_on_square(square + direction - 1);
             if target.is_opponent(color) {
-                if square + direction - 1 != promotion_rank {
+                if chess_board.square_rank(square + direction - 1) != promotion_rank {
                     moves.push(chess_board.create_pawn_move(
                         square,
                         square + direction - 1,
@@ -396,7 +402,7 @@ impl PieceList {
             }
 
             let target = chess_board.get_piece_on_square(square + 2 * direction);
-            if (color == Color::White) && (chess_board.square_rank(square) == 2) {
+            if (color == Color::White) && (chess_board.square_rank(square) == double_push_rank) {
                 if first_target.is_empty() && target.is_empty() {
                     moves.push(chess_board.create_pawn_move(
                         square,
@@ -410,7 +416,7 @@ impl PieceList {
                 }
             }
 
-            if (color == Color::Black) && (chess_board.square_rank(square) == 7) {
+            if (color == Color::Black) && (chess_board.square_rank(square) == double_push_rank) {
                 if first_target.is_empty() && target.is_empty() {
                     moves.push(chess_board.create_pawn_move(
                         square,
@@ -738,11 +744,12 @@ impl PieceList {
         }
     }
 
-    fn bishop_move(chess_board: &ChessBoard, from: i16, to: i16) -> bool {
+    fn bishop_attack(chess_board: &ChessBoard, from: i16, to: i16) -> bool {
         // Sanity check, the squares can't be the same
         if from == to {
             return false;
         }
+
         // Check if the squares are in the same diagonal.
         let same_diagonal = chess_board.are_on_the_same_diagonal(from, to);
         if !same_diagonal {
@@ -757,35 +764,26 @@ impl PieceList {
         let row_dir: i16 = if row2 > row1 { 1 } else { -1 };
 
         let col1 = chess_board.square_file(from);
-        let col2 = chess_board.square_rank(to);
+        let col2 = chess_board.square_file(to);
         let col_dir: i16 = if col2 > col1 { 1 } else { -1 };
 
         let direction = row_dir * chess_board.board_width + col_dir;
 
-        let moving_color = chess_board.get_piece_on_square(from).get_color();
-        let mut position = from;
+        let mut position = from + direction;
         while position != to {
-            position += direction;
-
             let piece = chess_board.get_piece_on_square(position);
             if piece.is_empty() {
+                position += direction;
                 continue;
             } else {
-                // If this is the destination square, allow capture if colors differ
-                if position == to {
-                    return piece.is_opponent(moving_color);
-                } else {
-                    // Blocked by a piece before reaching destination
-                    return false;
-                }
+                return false;
             }
         }
 
-        // The path is clear for the bishop to move there
         true
     }
 
-    fn rook_move(chess_board: &ChessBoard, from: i16, to: i16) -> bool {
+    fn rook_attack(chess_board: &ChessBoard, from: i16, to: i16) -> bool {
         // Check if the squares are in the same file or in the same rank.
         let same_rank = chess_board.are_on_the_same_rank(from, to);
         let same_file = chess_board.are_on_the_same_file(from, to);
@@ -809,38 +807,30 @@ impl PieceList {
             }
         };
 
-        let moving_color = chess_board.get_piece_on_square(from).get_color();
-        let mut position = from;
+        let mut position = from + direction;
         while position != to {
-            position += direction;
-
             let piece = chess_board.get_piece_on_square(position);
             if piece.is_empty() {
+                position += direction;
                 continue;
             } else {
-                // If this is the destination square, allow capture if colors differ
-                if position == to {
-                    return piece.is_opponent(moving_color);
-                } else {
-                    // Blocked by a piece before reaching destination
-                    return false;
-                }
+                // Blocked by a piece before reaching destination
+                return false;
             }
         }
 
-        // The path is clear for the rook to move there
         true
     }
 
-    fn queen_move(chess_board: &ChessBoard, from: i16, to: i16) -> bool {
+    fn queen_attack(chess_board: &ChessBoard, from: i16, to: i16) -> bool {
         // Check if the queen can move like a bishop to the 'to' square
-        let bishop = PieceList::bishop_move(chess_board, from, to);
+        let bishop = PieceList::bishop_attack(chess_board, from, to);
         if bishop {
             return true;
         }
 
         // Check if the queen can move like a rook to the 'to' square
-        let rook = PieceList::rook_move(chess_board, from, to);
+        let rook = PieceList::rook_attack(chess_board, from, to);
         if rook {
             return true;
         }
@@ -849,7 +839,7 @@ impl PieceList {
         false
     }
 
-    fn king_move(chess_board: &ChessBoard, from: i16, to: i16) -> bool {
+    fn king_attack(chess_board: &ChessBoard, from: i16, to: i16) -> bool {
         if from == to {
             return false;
         }
@@ -863,22 +853,14 @@ impl PieceList {
         let row_diff = row1.abs_diff(row2);
         let col_diff = col1.abs_diff(col2);
 
-        if row_diff <= 1 && col_diff <= 1 {
-            let moving_color = chess_board.get_piece_on_square(from).get_color();
-
-            let piece = chess_board.get_piece_on_square(to);
-            if piece.is_empty() || piece.is_opponent(moving_color) {
-                return true;
-            } else {
-                return false;
-            }
+        if row_diff > 1 || col_diff > 1 {
+            return false;
         }
 
-        // King can't move more than a square distance
-        false
+        true
     }
 
-    fn knight_move(chess_board: &ChessBoard, from: i16, to: i16) -> bool {
+    fn knight_attack(chess_board: &ChessBoard, from: i16, to: i16) -> bool {
         if from == to {
             return false;
         }
@@ -893,21 +875,14 @@ impl PieceList {
         let col_diff = col1.abs_diff(col2);
 
         if (row_diff == 2 && col_diff == 1) || (row_diff == 1 && col_diff == 2) {
-            let moving_color = chess_board.get_piece_on_square(from).get_color();
-
-            let piece = chess_board.get_piece_on_square(to);
-            if piece.is_empty() || piece.is_opponent(moving_color) {
-                return true;
-            } else {
-                return false;
-            }
+            return true;
         }
 
         // Movement doesn't follow an L-shape
         false
     }
 
-    fn pawn_move(chess_board: &ChessBoard, from: i16, to: i16) -> bool {
+    fn pawn_attack(chess_board: &ChessBoard, from: i16, to: i16, color: Color) -> bool {
         if from == to {
             return false;
         }
@@ -921,64 +896,25 @@ impl PieceList {
         let row_diff = row1.abs_diff(row2);
         let col_diff = col1.abs_diff(col2);
 
-        if col_diff > 1 || row_diff > 2 {
+        if col_diff != 1 || row_diff != 1 {
             // Capture can only happen with a square distance,
-            // and the first move can be at most two squares.
             return false;
         }
 
-        let piece_dest = chess_board.get_piece_on_square(to);
-
-        let moving_color = chess_board.get_piece_on_square(from).get_color();
-        if col_diff == 1 {
-            // The capture can only happen if the destination square has an oponnent piece or
-            // if the el passant is valid for that square.
-            if let Some(en_passant) = chess_board.get_en_passant_target() {
-                if piece_dest.is_opponent(moving_color) || (en_passant == to) {
-                    return true;
-                } else {
-                    return false;
-                }
-            } else {
+        // Check if pawn direction is write
+        if color == Color::White {
+            // White pawn always goes up
+            if row2 < row1 {
+                return false;
+            }
+        } else {
+            // Black pawn always goes down
+            if row2 > row1 {
                 return false;
             }
         }
 
-        if row_diff == 1 {
-            if piece_dest.is_empty() {
-                return true;
-            } else {
-                return false;
-            }
-        }
-
-        if row_diff == 2 {
-            // This move can only be valid if the pawn was at the starting rank
-            if moving_color == Color::White && row1 == 2 {
-                // We need to check if there isn't a piece blocking the pawn
-                if chess_board
-                    .get_piece_on_square(from + chess_board.board_width)
-                    .is_empty()
-                    && piece_dest.is_empty()
-                {
-                    return true;
-                }
-            }
-
-            if moving_color == Color::Black && row1 == 6 {
-                // We need to check if there isn't a piece blocking the pawn
-                if chess_board
-                    .get_piece_on_square(from - chess_board.board_width)
-                    .is_empty()
-                    && piece_dest.is_empty()
-                {
-                    return true;
-                }
-            }
-        }
-
-        // We only get here if we got lost from the true path.
-        false
+        true
     }
 
     fn can_castle_kingside(
@@ -988,6 +924,15 @@ impl PieceList {
         king_square: i16,
         rook_square: i16,
     ) -> bool {
+        // 0. Check if castling privileges are valid
+        if (color == Color::White) && (chess_board.castling_rights.white_kingside != true) {
+            return false;
+        }
+
+        if (color == Color::Black) && (chess_board.castling_rights.black_kingside != true) {
+            return false;
+        }
+
         // 1. Check if king and rook are in starting positions
         if chess_board.get_piece_on_square(king_square)
             != if color == Color::White {
@@ -1048,6 +993,15 @@ impl PieceList {
         king_square: i16,
         rook_square: i16,
     ) -> bool {
+        // 0. Check if castling privileges are valid
+        if (color == Color::White) && (chess_board.castling_rights.white_queenside != true) {
+            return false;
+        }
+
+        if (color == Color::Black) && (chess_board.castling_rights.black_queenside != true) {
+            return false;
+        }
+
         // 1. Check if king and rook are in starting positions
         if chess_board.get_piece_on_square(king_square)
             != if color == Color::White {
@@ -1107,7 +1061,7 @@ impl PieceList {
             Color::White => {
                 if let Some(queen_list) = self.get_list(Piece::WhiteQueen) {
                     for &queen in queen_list.iter() {
-                        if Self::queen_move(chess_board, queen, square) {
+                        if Self::queen_attack(chess_board, queen, square) {
                             return true;
                         }
                     }
@@ -1115,7 +1069,7 @@ impl PieceList {
 
                 if let Some(rook_list) = self.get_list(Piece::WhiteRook) {
                     for &rook in rook_list.iter() {
-                        if Self::rook_move(chess_board, rook, square) {
+                        if Self::rook_attack(chess_board, rook, square) {
                             return true;
                         }
                     }
@@ -1123,7 +1077,7 @@ impl PieceList {
 
                 if let Some(bishop_list) = self.get_list(Piece::WhiteBishop) {
                     for &bishop in bishop_list.iter() {
-                        if Self::bishop_move(chess_board, bishop, square) {
+                        if Self::bishop_attack(chess_board, bishop, square) {
                             return true;
                         }
                     }
@@ -1131,7 +1085,7 @@ impl PieceList {
 
                 if let Some(knight_list) = self.get_list(Piece::WhiteKnight) {
                     for &knight in knight_list.iter() {
-                        if Self::knight_move(chess_board, knight, square) {
+                        if Self::knight_attack(chess_board, knight, square) {
                             return true;
                         }
                     }
@@ -1139,7 +1093,7 @@ impl PieceList {
 
                 if let Some(pawn_list) = self.get_list(Piece::WhitePawn) {
                     for &pawn in pawn_list.iter() {
-                        if Self::pawn_move(chess_board, pawn, square) {
+                        if Self::pawn_attack(chess_board, pawn, square, by_color) {
                             return true;
                         }
                     }
@@ -1147,7 +1101,7 @@ impl PieceList {
 
                 if let Some(king_list) = self.get_list(Piece::WhiteKing) {
                     for &king in king_list.iter() {
-                        if Self::king_move(chess_board, king, square) {
+                        if Self::king_attack(chess_board, king, square) {
                             return true;
                         }
                     }
@@ -1157,7 +1111,7 @@ impl PieceList {
             Color::Black => {
                 if let Some(queen_list) = self.get_list(Piece::BlackQueen) {
                     for &queen in queen_list.iter() {
-                        if Self::queen_move(chess_board, queen, square) {
+                        if Self::queen_attack(chess_board, queen, square) {
                             return true;
                         }
                     }
@@ -1165,7 +1119,7 @@ impl PieceList {
 
                 if let Some(rook_list) = self.get_list(Piece::BlackRook) {
                     for &rook in rook_list.iter() {
-                        if Self::rook_move(chess_board, rook, square) {
+                        if Self::rook_attack(chess_board, rook, square) {
                             return true;
                         }
                     }
@@ -1173,7 +1127,7 @@ impl PieceList {
 
                 if let Some(bishop_list) = self.get_list(Piece::BlackBishop) {
                     for &bishop in bishop_list.iter() {
-                        if Self::bishop_move(chess_board, bishop, square) {
+                        if Self::bishop_attack(chess_board, bishop, square) {
                             return true;
                         }
                     }
@@ -1181,7 +1135,7 @@ impl PieceList {
 
                 if let Some(knight_list) = self.get_list(Piece::BlackKnight) {
                     for &knight in knight_list.iter() {
-                        if Self::knight_move(chess_board, knight, square) {
+                        if Self::knight_attack(chess_board, knight, square) {
                             return true;
                         }
                     }
@@ -1189,7 +1143,7 @@ impl PieceList {
 
                 if let Some(pawn_list) = self.get_list(Piece::BlackPawn) {
                     for &pawn in pawn_list.iter() {
-                        if Self::pawn_move(chess_board, pawn, square) {
+                        if Self::pawn_attack(chess_board, pawn, square, by_color) {
                             return true;
                         }
                     }
@@ -1197,7 +1151,7 @@ impl PieceList {
 
                 if let Some(king_list) = self.get_list(Piece::BlackKing) {
                     for &king in king_list.iter() {
-                        if Self::king_move(chess_board, king, square) {
+                        if Self::king_attack(chess_board, king, square) {
                             return true;
                         }
                     }
@@ -1226,5 +1180,464 @@ impl Default for PieceList {
             black_knight_list: Vec::new(),
             black_pawn_list: Vec::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod is_square_attacked_tests {
+    use super::*;
+    use crate::game_state::GameState;
+
+    #[test]
+    fn test_pawn_attacks() {
+        let mut game = GameState::default();
+        game.set_fen_position("8/8/8/8/3p4/4P3/8/8 w - - 0 1");
+        /*
+            12x10 Chess Board:
+            ==============================
+            10 │ X X X X X X X X X X │
+            09 │ X X X X X X X X X X │
+            08 │ X . . . . . . . . X │
+            07 │ X . . . . . . . . X │
+            06 │ X . . . . . . . . X │
+            05 │ X . . . . . . . . X │
+            04 │ X . . . p . . . . X │
+            03 │ X . . . . P . . . X │
+            02 │ X . . . . . . . . X │
+            01 │ X . . . . . . . . X │
+            00 │ X X X X X X X X X X │
+            -1 │ X X X X X X X X X X │
+               └─────────────────────
+                z a b c d e f g h i
+        */
+
+        // Black pawn at d4 should attack e3 and c3
+        assert!(game.board.piece_list.is_square_attacked(
+            &game.board,
+            game.board.algebraic_to_internal("e3"),
+            Color::Black
+        ));
+        assert!(game.board.piece_list.is_square_attacked(
+            &game.board,
+            game.board.algebraic_to_internal("c3"),
+            Color::Black
+        ));
+        // e4 not attacked
+        assert!(!game.board.piece_list.is_square_attacked(
+            &game.board,
+            game.board.algebraic_to_internal("e4"),
+            Color::Black
+        ));
+        // diagonals behind can't be attacked
+        assert!(!game.board.piece_list.is_square_attacked(
+            &game.board,
+            game.board.algebraic_to_internal("d5"),
+            Color::Black
+        ));
+        assert!(!game.board.piece_list.is_square_attacked(
+            &game.board,
+            game.board.algebraic_to_internal("c5"),
+            Color::Black
+        ));
+    }
+
+    #[test]
+    fn test_knight_attacks() {
+        let mut game = GameState::default();
+        game.set_fen_position("8/8/8/3N4/8/8/8/8 w - - 0 1");
+        /*
+            12x10 Chess Board:
+            ==============================
+            10 │ X X X X X X X X X X │
+            09 │ X X X X X X X X X X │
+            08 │ X . . . . . . . . X │
+            07 │ X . . . . . . . . X │
+            06 │ X . . . . . . . . X │
+            05 │ X . . . N . . . . X │
+            04 │ X . . . . . . . . X │
+            03 │ X . . . . . . . . X │
+            02 │ X . . . . . . . . X │
+            01 │ X . . . . . . . . X │
+            00 │ X X X X X X X X X X │
+            -1 │ X X X X X X X X X X │
+               └─────────────────────
+                 z a b c d e f g h i
+        */
+
+        // Knight at d5 should attack 8 squares
+        let attacked_squares = ["b4", "b6", "c3", "c7", "e3", "e7", "f4", "f6"];
+
+        for &algebraic_square in &attacked_squares {
+            let square = game.board.algebraic_to_internal(algebraic_square);
+            assert!(
+                game.board
+                    .piece_list
+                    .is_square_attacked(&game.board, square, Color::White),
+                "Square {} should be attacked by knight",
+                algebraic_square
+            );
+        }
+
+        let safe_square = game.board.algebraic_to_internal("a1");
+        assert!(
+            !game
+                .board
+                .piece_list
+                .is_square_attacked(&game.board, safe_square, Color::White),
+            "Square {} should not be attacked by knight",
+            "a1"
+        );
+    }
+
+    #[test]
+    fn test_bishop_attacks() {
+        let mut game = GameState::default();
+        game.set_fen_position("8/8/8/3B4/8/8/8/8 w - - 0 1");
+        /*
+            12x10 Chess Board:
+            ==============================
+            10 │ X X X X X X X X X X │
+            09 │ X X X X X X X X X X │
+            08 │ X . . . . . . . . X │
+            07 │ X . . . . . . . . X │
+            06 │ X . . . . . . . . X │
+            05 │ X . . . B . . . . X │
+            04 │ X . . . . . . . . X │
+            03 │ X . . . . . . . . X │
+            02 │ X . . . . . . . . X │
+            01 │ X . . . . . . . . X │
+            00 │ X X X X X X X X X X │
+            -1 │ X X X X X X X X X X │
+               └─────────────────────
+                 z a b c d e f g h i
+        */
+        // diagonals
+        let attacked_squares = ["a8", "h1", "g8", "a2"];
+
+        // Bishop at d5 should attack diagonals
+        for &algebraic_square in &attacked_squares {
+            let square = game.board.algebraic_to_internal(algebraic_square);
+            assert!(
+                game.board
+                    .piece_list
+                    .is_square_attacked(&game.board, square, Color::White),
+                "Square {} should be attacked by bishop",
+                algebraic_square
+            );
+        }
+
+        let safe_square = game.board.algebraic_to_internal("d4");
+        assert!(
+            !game
+                .board
+                .piece_list
+                .is_square_attacked(&game.board, safe_square, Color::White),
+            "Square {} should not be attacked by bishop",
+            "d4"
+        );
+    }
+
+    #[test]
+    fn test_rook_attacks() {
+        let mut game = GameState::default();
+        game.set_fen_position("8/8/8/3R4/8/8/8/8 w - - 0 1");
+        /*
+            ==============================
+            10 │ X X X X X X X X X X │
+            09 │ X X X X X X X X X X │
+            08 │ X . . . . . . . . X │
+            07 │ X . . . . . . . . X │
+            06 │ X . . . . . . . . X │
+            05 │ X . . . R . . . . X │
+            04 │ X . . . . . . . . X │
+            03 │ X . . . . . . . . X │
+            02 │ X . . . . . . . . X │
+            01 │ X . . . . . . . . X │
+            00 │ X X X X X X X X X X │
+            -1 │ X X X X X X X X X X │
+               └─────────────────────
+                 z a b c d e f g h i
+        */
+        let attacked_squares = ["b5", "h5", "d6", "d3"];
+
+        for &algebraic_square in &attacked_squares {
+            let square = game.board.algebraic_to_internal(algebraic_square);
+            assert!(
+                game.board
+                    .piece_list
+                    .is_square_attacked(&game.board, square, Color::White),
+                "Square {} should be attacked by rook",
+                algebraic_square
+            );
+        }
+        let safe_square = game.board.algebraic_to_internal("e4");
+        assert!(
+            !game
+                .board
+                .piece_list
+                .is_square_attacked(&game.board, safe_square, Color::White),
+            "Square {} should be attacked by rook",
+            "e4"
+        );
+    }
+    #[test]
+    fn test_queen_attacks() {
+        let mut game = GameState::default();
+        game.set_fen_position("8/8/8/3Q4/8/8/8/8 w - - 0 1");
+        /*
+            12x10 Chess Board:
+            ==============================
+            10 │ X X X X X X X X X X │
+            09 │ X X X X X X X X X X │
+            08 │ X . . . . . . . . X │
+            07 │ X . . . . . . . . X │
+            06 │ X . . . . . . . . X │
+            05 │ X . . . Q . . . . X │
+            04 │ X . . . . . . . . X │
+            03 │ X . . . . . . . . X │
+            02 │ X . . . . . . . . X │
+            01 │ X . . . . . . . . X │
+            00 │ X X X X X X X X X X │
+            -1 │ X X X X X X X X X X │
+               └─────────────────────
+                 z a b c d e f g h i
+        */
+
+        let attacked_squares = ["a5", "g5", "d6", "b3", "f7", "b3", "c6", "h1"];
+
+        for &algebraic_square in &attacked_squares {
+            let square = game.board.algebraic_to_internal(algebraic_square);
+            assert!(
+                game.board
+                    .piece_list
+                    .is_square_attacked(&game.board, square, Color::White),
+                "Square {} should be attacked by queen",
+                algebraic_square
+            );
+        }
+
+        let safe_square = game.board.algebraic_to_internal("g4");
+        assert!(
+            !game
+                .board
+                .piece_list
+                .is_square_attacked(&game.board, safe_square, Color::White)
+        );
+    }
+
+    #[test]
+    fn test_king_attacks() {
+        let mut game = GameState::default();
+        game.set_fen_position("8/8/8/3K4/8/8/8/8 w - - 0 1");
+        /*
+            12x10 Chess Board:
+            ==============================
+            10 │ X X X X X X X X X X │
+            09 │ X X X X X X X X X X │
+            08 │ X . . . . . . . . X │
+            07 │ X . . . . . . . . X │
+            06 │ X . . . . . . . . X │
+            05 │ X . . . K . . . . X │
+            04 │ X . . . . . . . . X │
+            03 │ X . . . . . . . . X │
+            02 │ X . . . . . . . . X │
+            01 │ X . . . . . . . . X │
+            00 │ X X X X X X X X X X │
+            -1 │ X X X X X X X X X X │
+               └─────────────────────
+                 z a b c d e f g h i
+        */
+
+        // King at d5 should attack surrounding squares
+        let attacked_squares = ["c6", "d6", "e6", "c5", "e5", "c4", "d4", "e4"];
+
+        for &algebraic_square in &attacked_squares {
+            let square = game.board.algebraic_to_internal(algebraic_square);
+            assert!(
+                game.board
+                    .piece_list
+                    .is_square_attacked(&game.board, square, Color::White),
+                "Square {} should be attacked by king",
+                algebraic_square
+            );
+        }
+
+        let safe_square = game.board.algebraic_to_internal("e3"); // too far
+        assert!(
+            !game
+                .board
+                .piece_list
+                .is_square_attacked(&game.board, safe_square, Color::White)
+        );
+    }
+
+    #[test]
+    fn test_blocked_attacks() {
+        let mut game = GameState::default();
+        game.set_fen_position("8/8/8/3R4/3P4/8/8/8 w - - 0 1");
+        /*
+            12x10 Chess Board:
+            ==============================
+            10 │ X X X X X X X X X X │
+            09 │ X X X X X X X X X X │
+            08 │ X . . . . . . . . X │
+            07 │ X . . . . . . . . X │
+            06 │ X . . . . . . . . X │
+            05 │ X . . . R . . . . X │
+            04 │ X . . . P . . . . X │
+            03 │ X . . . . . . . . X │
+            02 │ X . . . . . . . . X │
+            01 │ X . . . . . . . . X │
+            00 │ X X X X X X X X X X │
+            -1 │ X X X X X X X X X X │
+               └─────────────────────
+                 z a b c d e f g h i
+        */
+
+        // Rook at d5 should not attack squares beyond the pawn at d4
+        let attacked_square = game.board.algebraic_to_internal("d4");
+        assert!(game.board.piece_list.is_square_attacked(
+            &game.board,
+            attacked_square,
+            Color::White
+        ));
+
+        let safe_square = game.board.algebraic_to_internal("d3"); // blocked by pawn
+        assert!(
+            !game
+                .board
+                .piece_list
+                .is_square_attacked(&game.board, safe_square, Color::White)
+        );
+    }
+}
+
+#[cfg(test)]
+mod can_castle_queenside_tests {
+    use super::*;
+    use crate::game_state::GameState;
+
+    #[test]
+    fn test_can_castle_queenside_normal() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+
+        // White should be able to castle queenside
+        assert!(game.board.piece_list.can_castle_queenside(
+            &game.board,
+            Color::White,
+            game.board.algebraic_to_internal("e1"),
+            game.board.algebraic_to_internal("a1")
+        ));
+
+        // Black should be able to castle queenside
+        assert!(game.board.piece_list.can_castle_queenside(
+            &game.board,
+            Color::Black,
+            game.board.algebraic_to_internal("e8"),
+            game.board.algebraic_to_internal("a8")
+        ));
+    }
+
+    #[test]
+    fn test_cannot_castle_queenside_if_king_moved() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+
+        // Simulate king moved by removing castling rights
+        game.board.castling_rights.white_queenside = false;
+
+        assert!(!game.board.piece_list.can_castle_queenside(
+            &game.board,
+            Color::White,
+            game.board.algebraic_to_internal("e1"),
+            game.board.algebraic_to_internal("a1")
+        ));
+    }
+
+    #[test]
+    fn test_cannot_castle_queenside_if_rook_moved() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+
+        // Simulate rook moved by removing castling rights
+        game.board.castling_rights.white_queenside = false;
+
+        assert!(!game.board.piece_list.can_castle_queenside(
+            &game.board,
+            Color::White,
+            game.board.algebraic_to_internal("e1"),
+            game.board.algebraic_to_internal("a1")
+        ));
+    }
+
+    #[test]
+    fn test_cannot_castle_queenside_if_squares_occupied() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R1B1K2R w KQkq - 0 1");
+
+        // Bishop on c1 blocks queenside castling
+        assert!(!game.board.piece_list.can_castle_queenside(
+            &game.board,
+            Color::White,
+            game.board.algebraic_to_internal("e1"),
+            game.board.algebraic_to_internal("a1")
+        ));
+    }
+
+    #[test]
+    fn test_cannot_castle_queenside_through_check() {
+        let mut game = GameState::default();
+        game.set_fen_position("8/8/8/8/8/2n5/8/R3K3 w - - 0 1");
+
+        // Black knight attacks d1, which king moves through
+        assert!(!game.board.piece_list.can_castle_queenside(
+            &game.board,
+            Color::White,
+            game.board.algebraic_to_internal("e1"),
+            game.board.algebraic_to_internal("a1")
+        ));
+    }
+
+    #[test]
+    fn test_cannot_castle_queenside_if_in_check() {
+        let mut game = GameState::default();
+        game.set_fen_position("8/8/8/8/7b/8/8/R3K3 w - - 0 1");
+
+        // Black bishop attacks e1 (king is in check)
+        assert!(!game.board.piece_list.can_castle_queenside(
+            &game.board,
+            Color::White,
+            game.board.algebraic_to_internal("e1"),
+            game.board.algebraic_to_internal("a1")
+        ));
+    }
+
+    #[test]
+    fn test_cannot_castle_queenside_if_pieces_missing() {
+        let mut game = GameState::default();
+        game.set_fen_position("4k3/pppppppp/8/8/8/8/PPPPPPPP/4K3 w - - 0 1");
+
+        // No rook on a1
+        assert!(!game.board.piece_list.can_castle_queenside(
+            &game.board,
+            Color::White,
+            game.board.algebraic_to_internal("e1"),
+            game.board.algebraic_to_internal("a1")
+        ));
+    }
+
+    #[test]
+    fn test_cannot_castle_queenside_wrong_color() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+
+        // Black pieces on white squares shouldn't allow white to castle
+        assert!(!game.board.piece_list.can_castle_queenside(
+            &game.board,
+            Color::White,
+            game.board.algebraic_to_internal("e1"), // white king
+            game.board.algebraic_to_internal("a8")  // black rook - WRONG ROOK!
+        ));
     }
 }
