@@ -29,7 +29,7 @@ impl Color {
 }
 
 #[repr(u8)]
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Piece {
     EmptySquare = 0,
     WhitePawn,
@@ -130,9 +130,10 @@ pub struct Move {
     pub en_passant: bool,                 // Whether this is an en passant capture
     pub en_passant_square: Option<i16>,   // Set when pawn moves two squares
     pub previous_en_passant: Option<i16>, // Previous en passant target
+    pub previous_castling_rights: Option<CastlingRights>, // Previous castling rights
 }
 
-#[derive(Clone)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct CastlingRights {
     pub white_queenside: bool,
     pub white_kingside: bool,
@@ -165,10 +166,20 @@ impl ChessBoard {
     fn detect_castling(&self, piece: Piece, from: i16, to: i16) -> Option<CastlingInfo> {
         if piece.get_type() == PieceType::King {
             // Kingside castling: e1-g1 or e8-g8
-            if (from == 4 && to == 6) || (from == 60 && to == 62) {
-                let (rook_from, rook_to) = if from == 4 { (7, 5) } else { (63, 61) };
-                let rook_from = self.map_inner_to_outer_board(rook_from);
-                let rook_to = self.map_inner_to_outer_board(rook_to);
+            let white_king_from = self.algebraic_to_internal("e1");
+            let white_king_to = self.algebraic_to_internal("g1");
+
+            let black_king_from = self.algebraic_to_internal("e8");
+            let black_king_to = self.algebraic_to_internal("g8");
+
+            if (from == white_king_from && to == white_king_to)
+                || (from == black_king_from && to == black_king_to)
+            {
+                let (rook_from, rook_to) = if from == white_king_from {
+                    (self.algebraic_to_internal("h1"), self.algebraic_to_internal("f1"))
+                } else {
+                    (self.algebraic_to_internal("h8"), self.algebraic_to_internal("f8"))
+                };
                 let rook_piece = if piece.is_white() {
                     Piece::WhiteRook
                 } else {
@@ -180,11 +191,19 @@ impl ChessBoard {
                     rook_piece,
                 });
             }
+
             // Queenside castling: e1-c1 or e8-c8
-            else if (from == 4 && to == 2) || (from == 60 && to == 58) {
-                let (rook_from, rook_to) = if from == 4 { (0, 3) } else { (56, 59) };
-                let rook_from = self.map_inner_to_outer_board(rook_from);
-                let rook_to = self.map_inner_to_outer_board(rook_to);
+            let white_king_to = self.algebraic_to_internal("c1");
+            let black_king_to = self.algebraic_to_internal("c8");
+
+            if (from == white_king_from && to == white_king_to)
+                || (from == black_king_from && to == black_king_to)
+            {
+                let (rook_from, rook_to) = if from == white_king_from {
+                    (self.algebraic_to_internal("a1"), self.algebraic_to_internal("d1"))
+                } else {
+                    (self.algebraic_to_internal("a8"), self.algebraic_to_internal("d8"))
+                };
                 let rook_piece = if piece.is_white() {
                     Piece::WhiteRook
                 } else {
@@ -306,6 +325,7 @@ impl ChessBoard {
             en_passant,
             en_passant_square: None,
             previous_en_passant: self.get_en_passant_target(),
+            previous_castling_rights: Some(self.castling_rights),
         })
     }
 
@@ -364,6 +384,7 @@ impl ChessBoard {
             en_passant,
             en_passant_square,
             previous_en_passant: self.get_en_passant_target(),
+            previous_castling_rights: Some(self.castling_rights),
         }
     }
 
@@ -378,6 +399,7 @@ impl ChessBoard {
             en_passant: false,
             en_passant_square: None,
             previous_en_passant: self.get_en_passant_target(),
+            previous_castling_rights: Some(self.castling_rights),
         }
     }
 
@@ -389,7 +411,7 @@ impl ChessBoard {
         rook_from: i16,
         rook_to: i16,
     ) -> Move {
-        let color = if king_from == 4 {
+        let color = if king_from == self.algebraic_to_internal("e1") {
             Color::White
         } else {
             Color::Black
@@ -412,6 +434,7 @@ impl ChessBoard {
             en_passant: false,
             en_passant_square: None,
             previous_en_passant: self.get_en_passant_target(),
+            previous_castling_rights: Some(self.castling_rights),
         }
     }
 
@@ -524,6 +547,74 @@ impl ChessBoard {
         (chess_rank * 8 + chess_file) as usize
     }
 
+    fn update_castling_rights(&mut self, mv: &Move) {
+        let color = mv.piece.get_color();
+
+        // If king moves, lose both castling rights for that color
+        if mv.piece.get_type() == PieceType::King {
+            if color == Color::White {
+                self.castling_rights.white_kingside = false;
+                self.castling_rights.white_queenside = false;
+            } else {
+                self.castling_rights.black_kingside = false;
+                self.castling_rights.black_queenside = false;
+            }
+        }
+
+        let white_rook_queenside = self.algebraic_to_internal("a1");
+        let white_rook_kingside = self.algebraic_to_internal("h1");
+
+        let black_rook_queenside = self.algebraic_to_internal("a8");
+        let black_rook_kingside = self.algebraic_to_internal("h8");
+
+        // If rook moves from its starting square, lose corresponding castling right
+        match (color, mv.from) {
+            (Color::White, square) if square == white_rook_queenside => {
+                self.castling_rights.white_queenside = false
+            },
+            (Color::White, square) if square == white_rook_kingside => {
+                self.castling_rights.white_kingside = false
+            },
+            (Color::Black, square) if square == black_rook_queenside => {
+                self.castling_rights.black_queenside = false
+            },
+            (Color::Black, square) if square == black_rook_kingside => {
+                self.castling_rights.black_kingside = false
+            },
+            _ => {}
+        }
+
+        // If a rook is captured, lose corresponding castling right
+        if (mv.captured_piece != Piece::EmptySquare) && (mv.captured_piece.get_type() == PieceType::Rook) {
+            match (mv.captured_piece.get_color(), mv.to) {
+                (Color::White, square) if square == white_rook_queenside => {
+                    self.castling_rights.white_queenside = false
+                },
+                (Color::White, square) if square == white_rook_kingside => {
+                    self.castling_rights.white_kingside = false
+                },
+                (Color::Black, square) if square == black_rook_queenside => {
+                    self.castling_rights.black_queenside = false
+                },
+                (Color::Black, square) if square == black_rook_kingside => {
+                    self.castling_rights.black_kingside = false
+                },
+                _ => {}
+            }
+        }
+
+        // If castling move is made, lose both castling rights for that color
+        if mv.castling.is_some() {
+            if color == Color::White {
+                self.castling_rights.white_kingside = false;
+                self.castling_rights.white_queenside = false;
+            } else {
+                self.castling_rights.black_kingside = false;
+                self.castling_rights.black_queenside = false;
+            }
+        }
+    }
+
     /* We expect an 8x8 array of pieces*/
     pub fn set_board(&mut self, board_position: &[Piece; 64]) {
         // Set all squares to invalid
@@ -553,6 +644,9 @@ impl ChessBoard {
 
     // Given a move, update the board
     pub fn make_move(&mut self, mv: &Move) {
+
+        self.update_castling_rights(mv);
+
         let piece = mv.piece;
 
         // If this was an en passant capture
@@ -607,6 +701,10 @@ impl ChessBoard {
         if let Some(castling) = &mv.castling {
             self.set_piece_on_square(castling.rook_piece, castling.rook_from);
             self.set_piece_on_square(Piece::EmptySquare, castling.rook_to);
+        }
+
+        if let Some(previous_castling_rights) = mv.previous_castling_rights {
+            self.castling_rights = previous_castling_rights;
         }
 
         // Promotion is undone automatically
@@ -706,5 +804,97 @@ mod chess_board_tests {
         assert_eq!(board.algebraic_to_internal("a8"), 91);
         assert_eq!(board.algebraic_to_internal("h1"), 28);
         assert_eq!(board.algebraic_to_internal("h8"), 98);
+    }
+}
+
+#[cfg(test)]
+mod castling_tests {
+    use super::*;
+    use crate::game_state::GameState;
+
+    #[test]
+    fn test_castling_move_execution() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+        game.board.print_board();
+
+        // Execute kingside castling
+        game.make_move("e1g1");
+        game.board.print_board();
+
+        // Verify board state after castling
+        let king_square = game.board.algebraic_to_internal("g1");
+        let rook_square = game.board.algebraic_to_internal("f1");
+
+        assert_eq!(
+            game.board.get_piece_on_square(king_square),
+            Piece::WhiteKing
+        );
+        assert_eq!(
+            game.board.get_piece_on_square(rook_square),
+            Piece::WhiteRook
+        );
+
+        // Original squares should be empty
+        let original_king = game.board.algebraic_to_internal("e1");
+        let original_rook = game.board.algebraic_to_internal("h1");
+
+        assert_eq!(
+            game.board.get_piece_on_square(original_king),
+            Piece::EmptySquare
+        );
+        assert_eq!(
+            game.board.get_piece_on_square(original_rook),
+            Piece::EmptySquare
+        );
+    }
+
+    #[test]
+    fn test_castling_unmake() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+
+        let initial_board = game.board.board_squares.clone();
+        let initial_castling = game.board.castling_rights;
+
+        // Make and unmake castling move
+        let mv = game
+            .create_move("e1g1")
+            .expect("Castling move should be valid");
+        game.board.make_move(&mv);
+        game.board.unmake_move(&mv);
+
+        // Board should be back to initial state
+        assert_eq!(game.board.board_squares, initial_board);
+        assert_eq!(game.board.castling_rights, initial_castling);
+    }
+
+    #[test]
+    fn test_complete_castling_scenario() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+
+        // White castles kingside
+        game.make_move("e1g1");
+
+        // Black castles queenside
+        game.make_move("e8c8");
+
+        // Verify final position
+        let white_king = game.board.algebraic_to_internal("g1");
+        let white_rook = game.board.algebraic_to_internal("f1");
+        let black_king = game.board.algebraic_to_internal("c8");
+        let black_rook = game.board.algebraic_to_internal("d8");
+
+        assert_eq!(game.board.get_piece_on_square(white_king), Piece::WhiteKing);
+        assert_eq!(game.board.get_piece_on_square(white_rook), Piece::WhiteRook);
+        assert_eq!(game.board.get_piece_on_square(black_king), Piece::BlackKing);
+        assert_eq!(game.board.get_piece_on_square(black_rook), Piece::BlackRook);
+
+        // Castling rights should be lost for both sides
+        assert!(!game.board.castling_rights.white_kingside);
+        assert!(!game.board.castling_rights.white_queenside);
+        assert!(!game.board.castling_rights.black_kingside);
+        assert!(!game.board.castling_rights.black_queenside);
     }
 }

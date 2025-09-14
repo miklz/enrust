@@ -1,0 +1,204 @@
+use enrust::game_state::{Color, GameState};
+
+#[cfg(test)]
+mod castling_tests {
+    use super::*;
+
+    #[test]
+    fn test_white_kingside_castling() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+
+        let moves = game.generate_moves(Color::White);
+
+        // Should have kingside castling move
+        assert!(
+            moves.contains(&"e1g1".to_string()),
+            "Kingside castling move not found. Moves: {:?}",
+            moves
+        );
+
+        // Should also have other moves (king moves, rook moves)
+        assert!(
+            moves.len() >= 1,
+            "Expected at least 1 move, got {}",
+            moves.len()
+        );
+    }
+
+    #[test]
+    fn test_white_queenside_castling() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+
+        let moves = game.generate_moves(Color::White);
+
+        // Should have queenside castling move
+        assert!(
+            moves.contains(&"e1c1".to_string()),
+            "Queenside castling move not found. Moves: {:?}",
+            moves
+        );
+    }
+
+    #[test]
+    fn test_black_kingside_castling() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1");
+
+        let moves = game.generate_moves(Color::Black);
+
+        // Should have kingside castling move
+        assert!(
+            moves.contains(&"e8g8".to_string()),
+            "Black kingside castling move not found. Moves: {:?}",
+            moves
+        );
+    }
+
+    #[test]
+    fn test_black_queenside_castling() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1");
+
+        let moves = game.generate_moves(Color::Black);
+
+        // Should have queenside castling move
+        assert!(
+            moves.contains(&"e8c8".to_string()),
+            "Black queenside castling move not found. Moves: {:?}",
+            moves
+        );
+    }
+
+    #[test]
+    fn test_castling_with_pieces_in_between() {
+        let mut game = GameState::default();
+        // Bishop blocking the kingside castling
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3KB1R b KQkq - 0 1");
+
+        let moves = game.generate_moves(Color::White);
+
+        // Should NOT have kingside castling
+        assert!(
+            !moves.contains(&"e1g1".to_string()),
+            "Kingside castling should be blocked by bishop. Moves: {:?}",
+            moves
+        );
+
+        // But should still have queenside
+        assert!(
+            moves.contains(&"e1c1".to_string()),
+            "Queenside castling should be available. Moves: {:?}",
+            moves
+        );
+    }
+
+    #[test]
+    fn test_castling_rights_after_king_move() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+
+        // Make king move
+        game.make_move("e1e2");
+        game.make_move("e8e7"); // Black moves
+
+        let moves = game.generate_moves(Color::White);
+
+        // Should NOT have any castling moves after king moved
+        assert!(
+            !moves.contains(&"e2g2".to_string()),
+            "Should not have castling after king moved. Moves: {:?}",
+            moves
+        );
+        assert!(
+            !moves.contains(&"e2c2".to_string()),
+            "Should not have castling after king moved. Moves: {:?}",
+            moves
+        );
+    }
+
+    #[test]
+    fn test_castling_rights_after_rook_move() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+
+        // Move kingside rook
+        game.make_move("h1h2");
+        game.make_move("e8e7"); // Black moves
+
+        let moves = game.generate_moves(Color::White);
+
+        // Should have queenside but not kingside castling
+        assert!(
+            !moves.contains(&"e1g1".to_string()),
+            "Should not have kingside castling {} after rook moved. Moves: {:?}",
+            "e1g1",
+            moves
+        );
+        assert!(
+            moves.contains(&"e1c1".to_string()),
+            "Should still have queenside castling {}. Moves: {:?}",
+            "e1c1",
+            moves
+        );
+    }
+
+    #[test]
+    fn test_castling_through_check() {
+        let mut game = GameState::default();
+        // Black queen attacking f1 square (kingside castling path)
+        game.set_fen_position("r3k2r/pppppppp/8/8/5q2/8/PPPPP1PP/R3K2R w KQkq - 0 1");
+
+        let moves = game.generate_moves(Color::White);
+
+        // Should NOT have kingside castling (king would move through check)
+        assert!(
+            !moves.contains(&"e1g1".to_string()),
+            "Should not castling through check. Moves: {:?}",
+            moves
+        );
+    }
+
+    #[test]
+    fn test_castling_out_of_check() {
+        let mut game = GameState::default();
+        // Black queen giving check
+        game.set_fen_position("r3k2r/pppppppp/8/8/5P2/6q1/PPPPP1PP/R3K2R b KQkq f3 0 1");
+
+        let moves = game.generate_moves(Color::White);
+
+        // Should NOT have any castling moves (cannot castle out of check)
+        assert!(
+            !moves.contains(&"e1g1".to_string()),
+            "Cannot castle out of check. Moves: {:?}",
+            moves
+        );
+        assert!(
+            !moves.contains(&"e1c1".to_string()),
+            "Cannot castle out of check. Moves: {:?}",
+            moves
+        );
+    }
+
+    #[test]
+    fn test_no_castling_rights() {
+        let mut game = GameState::default();
+        // Position without castling rights
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w - - 0 1");
+
+        let moves = game.generate_moves(Color::White);
+
+        // Should NOT have any castling moves
+        assert!(
+            !moves.contains(&"e1g1".to_string()),
+            "No castling rights. Moves: {:?}",
+            moves
+        );
+        assert!(
+            !moves.contains(&"e1c1".to_string()),
+            "No castling rights. Moves: {:?}",
+            moves
+        );
+    }
+}

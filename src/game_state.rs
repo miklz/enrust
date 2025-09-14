@@ -147,10 +147,10 @@ impl GameState {
             return false;
         }
 
-        let mut white_queenside = true;
-        let mut white_kingside = true;
-        let mut black_queenside = true;
-        let mut black_kingside = true;
+        let mut white_queenside = false;
+        let mut white_kingside = false;
+        let mut black_queenside = false;
+        let mut black_kingside = false;
 
         // Castling rights
         if let Some(castling_rights) = fen.next() {
