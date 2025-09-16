@@ -1,4 +1,4 @@
-use enrust::game_state::{Color, GameState};
+use enrust::game_state::GameState;
 
 #[cfg(test)]
 mod castling_tests {
@@ -9,7 +9,7 @@ mod castling_tests {
         let mut game = GameState::default();
         game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
 
-        let moves = game.generate_moves(Color::White);
+        let moves = game.generate_moves();
 
         // Should have kingside castling move
         assert!(
@@ -31,7 +31,7 @@ mod castling_tests {
         let mut game = GameState::default();
         game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
 
-        let moves = game.generate_moves(Color::White);
+        let moves = game.generate_moves();
 
         // Should have queenside castling move
         assert!(
@@ -46,7 +46,7 @@ mod castling_tests {
         let mut game = GameState::default();
         game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1");
 
-        let moves = game.generate_moves(Color::Black);
+        let moves = game.generate_moves();
 
         // Should have kingside castling move
         assert!(
@@ -61,7 +61,7 @@ mod castling_tests {
         let mut game = GameState::default();
         game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1");
 
-        let moves = game.generate_moves(Color::Black);
+        let moves = game.generate_moves();
 
         // Should have queenside castling move
         assert!(
@@ -75,9 +75,9 @@ mod castling_tests {
     fn test_castling_with_pieces_in_between() {
         let mut game = GameState::default();
         // Bishop blocking the kingside castling
-        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3KB1R b KQkq - 0 1");
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3KB1R w KQkq - 0 1");
 
-        let moves = game.generate_moves(Color::White);
+        let moves = game.generate_moves();
 
         // Should NOT have kingside castling
         assert!(
@@ -103,7 +103,7 @@ mod castling_tests {
         game.make_move("e1e2");
         game.make_move("e8e7"); // Black moves
 
-        let moves = game.generate_moves(Color::White);
+        let moves = game.generate_moves();
 
         // Should NOT have any castling moves after king moved
         assert!(
@@ -127,7 +127,7 @@ mod castling_tests {
         game.make_move("h1h2");
         game.make_move("e8e7"); // Black moves
 
-        let moves = game.generate_moves(Color::White);
+        let moves = game.generate_moves();
 
         // Should have queenside but not kingside castling
         assert!(
@@ -150,7 +150,7 @@ mod castling_tests {
         // Black queen attacking f1 square (kingside castling path)
         game.set_fen_position("r3k2r/pppppppp/8/8/5q2/8/PPPPP1PP/R3K2R w KQkq - 0 1");
 
-        let moves = game.generate_moves(Color::White);
+        let moves = game.generate_moves();
 
         // Should NOT have kingside castling (king would move through check)
         assert!(
@@ -166,7 +166,7 @@ mod castling_tests {
         // Black queen giving check
         game.set_fen_position("r3k2r/pppppppp/8/8/5P2/6q1/PPPPP1PP/R3K2R b KQkq f3 0 1");
 
-        let moves = game.generate_moves(Color::White);
+        let moves = game.generate_moves();
 
         // Should NOT have any castling moves (cannot castle out of check)
         assert!(
@@ -187,7 +187,7 @@ mod castling_tests {
         // Position without castling rights
         game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w - - 0 1");
 
-        let moves = game.generate_moves(Color::White);
+        let moves = game.generate_moves();
 
         // Should NOT have any castling moves
         assert!(

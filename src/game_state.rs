@@ -242,8 +242,8 @@ impl GameState {
         }
     }
 
-    pub fn generate_moves(&mut self, color: Color) -> Vec<String> {
-        let moves = self.board.generate_moves(color);
+    pub fn generate_moves(&mut self) -> Vec<String> {
+        let moves = self.board.generate_moves(self.side_to_move);
 
         let move_ucis: Vec<String> = moves.iter().map(|mv| self.board.move_to_uci(mv)).collect();
         move_ucis

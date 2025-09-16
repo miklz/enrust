@@ -1,4 +1,4 @@
-use enrust::game_state::{Color, GameState};
+use enrust::game_state::GameState;
 
 #[cfg(test)]
 mod pawn_tests {
@@ -27,7 +27,7 @@ mod pawn_tests {
                  z a b c d e f g h i
         */
 
-        let moves = game.generate_moves(Color::White);
+        let moves = game.generate_moves();
 
         assert_eq!(moves.len(), 1);
         assert_eq!(moves[0], "e3e4");
@@ -56,7 +56,7 @@ mod pawn_tests {
                 z a b c d e f g h i
         */
 
-        let moves = game.generate_moves(Color::White);
+        let moves = game.generate_moves();
 
         // Should have both single and double push
         assert_eq!(moves.len(), 2);
@@ -93,7 +93,7 @@ mod promotion_tests {
                  z a b c d e f g h i
         */
 
-        let pawn_moves = game.generate_moves(Color::White);
+        let pawn_moves = game.generate_moves();
 
         // Should have 4 promotion options
         assert_eq!(pawn_moves.len(), 4);
@@ -127,7 +127,7 @@ mod promotion_tests {
                  z a b c d e f g h i
         */
 
-        let pawn_moves = game.generate_moves(Color::White);
+        let pawn_moves = game.generate_moves();
 
         // Should have 8 moves: 4 promotions + 4 capture promotions
         assert_eq!(pawn_moves.len(), 8);
@@ -170,7 +170,7 @@ mod promotion_tests {
                  z a b c d e f g h i
         */
 
-        let pawn_moves = game.generate_moves(Color::White);
+        let pawn_moves = game.generate_moves();
 
         // Should not have promotion options
         assert_eq!(pawn_moves.len(), 1); // single push
@@ -205,7 +205,7 @@ mod blocked_pawn_tests {
                  z a b c d e f g h i
         */
 
-        let pawn_moves = game.generate_moves(Color::White);
+        let pawn_moves = game.generate_moves();
 
         // e3 pawn is blocked by e4 pawn, should have no moves
         assert!(!pawn_moves.contains(&"e3".to_string()));
@@ -234,7 +234,7 @@ mod blocked_pawn_tests {
                  z a b c d e f g h i
         */
 
-        let pawn_moves = game.generate_moves(Color::White);
+        let pawn_moves = game.generate_moves();
 
         // e4 pawn is blocked by e5 pawn, it doesn't have captures
         assert_eq!(pawn_moves.len(), 0);
@@ -268,7 +268,7 @@ mod en_passant_tests {
                  z a b c d e f g h i
         */
 
-        let pawn_moves = game.generate_moves(Color::White);
+        let pawn_moves = game.generate_moves();
 
         // Should have forward move and en passant capture
         assert_eq!(pawn_moves.len(), 2);
@@ -300,7 +300,7 @@ mod en_passant_tests {
                  z a b c d e f g h i
         */
 
-        let pawn_moves = game.generate_moves(Color::White);
+        let pawn_moves = game.generate_moves();
 
         // No en passant target, should only have forward move
         assert_eq!(pawn_moves.len(), 1);
@@ -330,7 +330,7 @@ mod en_passant_tests {
                  z a b c d e f g h i
         */
 
-        let pawn_moves = game.generate_moves(Color::White);
+        let pawn_moves = game.generate_moves();
 
         // En passant target is e6, but pawn is on e5 - should not allow capture
         assert_eq!(pawn_moves.len(), 1);
@@ -365,7 +365,7 @@ mod edge_case_tests {
                  z a b c d e f g h i
         */
 
-        let pawn_moves = game.generate_moves(Color::White);
+        let pawn_moves = game.generate_moves();
 
         // a-file pawn should only have right capture (if available) and pushes
         // This test depends on the board setup - adjust as needed
@@ -395,7 +395,7 @@ mod edge_case_tests {
                  z a b c d e f g h i
         */
 
-        let pawn_moves = game.generate_moves(Color::Black);
+        let pawn_moves = game.generate_moves();
 
         // Black pawn should move downward (higher ranks to lower ranks)
         assert!(pawn_moves.iter().any(|uci| uci.ends_with("e2"))); // should move to e2
