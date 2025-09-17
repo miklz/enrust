@@ -107,7 +107,13 @@ impl PieceList {
             for ray in king_rays {
                 let target = chess_board.get_piece_on_square(square + ray);
                 if target.is_empty() || target.is_opponent(color) {
-                    moves.push(chess_board.create_move(square, square + ray, king, target));
+                    moves.push(Move::create_move(
+                        chess_board,
+                        square,
+                        square + ray,
+                        king,
+                        target,
+                    ));
                 }
             }
         }
@@ -141,9 +147,21 @@ impl PieceList {
 
                     let target = chess_board.get_piece_on_square(position);
                     if target.is_empty() {
-                        moves.push(chess_board.create_move(square, position, queen, target));
+                        moves.push(Move::create_move(
+                            chess_board,
+                            square,
+                            position,
+                            queen,
+                            target,
+                        ));
                     } else if target.is_opponent(color) {
-                        moves.push(chess_board.create_move(square, position, queen, target));
+                        moves.push(Move::create_move(
+                            chess_board,
+                            square,
+                            position,
+                            queen,
+                            target,
+                        ));
                         break;
                     }
 
@@ -175,9 +193,21 @@ impl PieceList {
 
                     let target = chess_board.get_piece_on_square(position);
                     if target.is_empty() {
-                        moves.push(chess_board.create_move(square, position, rook, target));
+                        moves.push(Move::create_move(
+                            chess_board,
+                            square,
+                            position,
+                            rook,
+                            target,
+                        ));
                     } else if target.is_opponent(color) {
-                        moves.push(chess_board.create_move(square, position, rook, target));
+                        moves.push(Move::create_move(
+                            chess_board,
+                            square,
+                            position,
+                            rook,
+                            target,
+                        ));
                         // If there is an enemy in this square, the rook can't go further
                         break;
                     }
@@ -215,9 +245,21 @@ impl PieceList {
 
                     let target = chess_board.get_piece_on_square(position);
                     if target.is_empty() {
-                        moves.push(chess_board.create_move(square, position, bishop, target));
+                        moves.push(Move::create_move(
+                            chess_board,
+                            square,
+                            position,
+                            bishop,
+                            target,
+                        ));
                     } else if target.is_opponent(color) {
-                        moves.push(chess_board.create_move(square, position, bishop, target));
+                        moves.push(Move::create_move(
+                            chess_board,
+                            square,
+                            position,
+                            bishop,
+                            target,
+                        ));
                         break;
                     }
 
@@ -254,7 +296,13 @@ impl PieceList {
             for ray in knight_rays {
                 let target = chess_board.get_piece_on_square(square + ray);
                 if target.is_empty() || target.is_opponent(color) {
-                    moves.push(chess_board.create_move(square, square + ray, knight, target));
+                    moves.push(Move::create_move(
+                        chess_board,
+                        square,
+                        square + ray,
+                        knight,
+                        target,
+                    ));
                 }
             }
         }
@@ -304,7 +352,8 @@ impl PieceList {
             let first_target = chess_board.get_piece_on_square(square + direction);
             if first_target.is_empty() {
                 if chess_board.square_rank(square + direction) != promotion_rank {
-                    moves.push(chess_board.create_pawn_move(
+                    moves.push(Move::create_pawn_move(
+                        chess_board,
                         square,
                         square + direction,
                         pawn,
@@ -315,7 +364,8 @@ impl PieceList {
                     ));
                 } else {
                     for promotion in promotion_pieces {
-                        moves.push(chess_board.create_pawn_move(
+                        moves.push(Move::create_pawn_move(
+                            chess_board,
                             square,
                             square + direction,
                             pawn,
@@ -331,7 +381,8 @@ impl PieceList {
             let target = chess_board.get_piece_on_square(square + direction + 1);
             if target.is_opponent(color) {
                 if chess_board.square_rank(square + direction + 1) != promotion_rank {
-                    moves.push(chess_board.create_pawn_move(
+                    moves.push(Move::create_pawn_move(
+                        chess_board,
                         square,
                         square + direction + 1,
                         pawn,
@@ -342,7 +393,8 @@ impl PieceList {
                     ));
                 } else {
                     for promotion in promotion_pieces {
-                        moves.push(chess_board.create_pawn_move(
+                        moves.push(Move::create_pawn_move(
+                            chess_board,
                             square,
                             square + direction + 1,
                             pawn,
@@ -354,7 +406,8 @@ impl PieceList {
                     }
                 }
             } else if Some(square + direction + 1) == chess_board.get_en_passant_target() {
-                moves.push(chess_board.create_pawn_move(
+                moves.push(Move::create_pawn_move(
+                    chess_board,
                     square,
                     square + direction + 1,
                     pawn,
@@ -368,7 +421,8 @@ impl PieceList {
             let target = chess_board.get_piece_on_square(square + direction - 1);
             if target.is_opponent(color) {
                 if chess_board.square_rank(square + direction - 1) != promotion_rank {
-                    moves.push(chess_board.create_pawn_move(
+                    moves.push(Move::create_pawn_move(
+                        chess_board,
                         square,
                         square + direction - 1,
                         pawn,
@@ -379,7 +433,8 @@ impl PieceList {
                     ));
                 } else {
                     for promotion in promotion_pieces {
-                        moves.push(chess_board.create_pawn_move(
+                        moves.push(Move::create_pawn_move(
+                            chess_board,
                             square,
                             square + direction - 1,
                             pawn,
@@ -391,7 +446,8 @@ impl PieceList {
                     }
                 }
             } else if Some(square + direction - 1) == chess_board.get_en_passant_target() {
-                moves.push(chess_board.create_pawn_move(
+                moves.push(Move::create_pawn_move(
+                    chess_board,
                     square,
                     square + direction - 1,
                     pawn,
@@ -405,7 +461,8 @@ impl PieceList {
             let target = chess_board.get_piece_on_square(square + 2 * direction);
             if (color == Color::White) && (chess_board.square_rank(square) == double_push_rank) {
                 if first_target.is_empty() && target.is_empty() {
-                    moves.push(chess_board.create_pawn_move(
+                    moves.push(Move::create_pawn_move(
+                        chess_board,
                         square,
                         square + 2 * direction,
                         pawn,
@@ -419,7 +476,8 @@ impl PieceList {
 
             if (color == Color::Black) && (chess_board.square_rank(square) == double_push_rank) {
                 if first_target.is_empty() && target.is_empty() {
-                    moves.push(chess_board.create_pawn_move(
+                    moves.push(Move::create_pawn_move(
+                        chess_board,
                         square,
                         square + 2 * direction,
                         pawn,
@@ -463,7 +521,8 @@ impl PieceList {
                 let king_to = king_square + 2; // g1 or g8
                 let rook_to = king_square + 1; // f1 or f8
 
-                moves.push(chess_board.create_castling_move(
+                moves.push(Move::create_castling_move(
+                    chess_board,
                     king_square,
                     king_to,
                     king_piece,
@@ -481,7 +540,8 @@ impl PieceList {
                 let king_to = king_square - 2; // c1 or c8
                 let rook_to = king_square - 1; // d1 or d8
 
-                moves.push(chess_board.create_castling_move(
+                moves.push(Move::create_castling_move(
+                    chess_board,
                     king_square,
                     king_to,
                     king_piece,

@@ -1,7 +1,7 @@
 pub mod board;
 pub use board::CastlingRights;
 pub use board::ChessBoard;
-pub use board::Move;
+pub use board::moves::Move;
 pub use board::piece::{Color, Piece};
 
 #[derive(Clone)]
