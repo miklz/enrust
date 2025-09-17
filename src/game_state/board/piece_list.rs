@@ -745,6 +745,13 @@ impl PieceList {
         }
     }
 
+    pub fn get_number_of_pieces(&self, piece: Piece) -> Option<i64> {
+        if let Some(piece_list) = self.get_list(piece) {
+            return Some(piece_list.len() as i64);
+        }
+        None
+    }
+
     fn bishop_attack(chess_board: &ChessBoard, from: i16, to: i16) -> bool {
         // Sanity check, the squares can't be the same
         if from == to {

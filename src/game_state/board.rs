@@ -163,6 +163,69 @@ pub struct ChessBoard {
 }
 
 impl ChessBoard {
+    fn material_score(&self, piece_list: &PieceList) -> i64 {
+        // count pieces
+        let w_king = piece_list
+            .get_number_of_pieces(Piece::WhiteKing)
+            .unwrap_or(0);
+        let b_king = piece_list
+            .get_number_of_pieces(Piece::BlackKing)
+            .unwrap_or(0);
+        let w_queen = piece_list
+            .get_number_of_pieces(Piece::WhiteQueen)
+            .unwrap_or(0);
+        let b_queen = piece_list
+            .get_number_of_pieces(Piece::BlackQueen)
+            .unwrap_or(0);
+        let w_rook = piece_list
+            .get_number_of_pieces(Piece::WhiteRook)
+            .unwrap_or(0);
+        let b_rook = piece_list
+            .get_number_of_pieces(Piece::BlackRook)
+            .unwrap_or(0);
+        let w_bishop = piece_list
+            .get_number_of_pieces(Piece::WhiteBishop)
+            .unwrap_or(0);
+        let b_bishop = piece_list
+            .get_number_of_pieces(Piece::BlackBishop)
+            .unwrap_or(0);
+        let w_knight = piece_list
+            .get_number_of_pieces(Piece::WhiteKnight)
+            .unwrap_or(0);
+        let b_kinght = piece_list
+            .get_number_of_pieces(Piece::BlackKnight)
+            .unwrap_or(0);
+        let w_pawn = piece_list
+            .get_number_of_pieces(Piece::WhitePawn)
+            .unwrap_or(0);
+        let b_pawn = piece_list
+            .get_number_of_pieces(Piece::BlackPawn)
+            .unwrap_or(0);
+
+        let material = 20000 * (w_king - b_king)
+            + 900 * (w_queen - b_queen)
+            + 500 * (w_rook - b_rook)
+            + 300 * (w_bishop - b_bishop + w_knight - b_kinght)
+            + 100 * (w_pawn - b_pawn);
+        material
+    }
+
+    pub fn evaluate(&mut self, moves: Vec<Move>, side_to_move: Color) -> Vec<(i64, Move)> {
+        let side = if side_to_move == Color::White { 1 } else { -1 };
+        let mut moves_scores = Vec::new();
+
+        for mv in moves {
+            self.make_move(&mv);
+            let score = self.material_score(&self.piece_list) * side;
+            self.unmake_move(&mv);
+
+            moves_scores.push((score, mv));
+        }
+
+        moves_scores.sort_by(|m, n| n.0.cmp(&m.0));
+        moves_scores
+    }
+
     fn detect_castling(&self, piece: Piece, from: i16, to: i16) -> Option<CastlingInfo> {
         if piece.get_type() == PieceType::King {
             // Kingside castling: e1-g1 or e8-g8
@@ -740,8 +803,9 @@ impl ChessBoard {
         if moves.is_empty() {
             None
         } else {
-            // Return first move for now (random move implementation)
-            Some(moves[0].clone())
+            let scored_moves = self.evaluate(moves, side_to_move);
+            let (_, best_move) = &scored_moves[0]; // Moves are sorted from best to worst
+            Some(best_move.clone())
         }
     }
 
