@@ -242,6 +242,20 @@ impl GameState {
         }
     }
 
+    pub fn unmake_move(&mut self, algebraic_notation: &str) {
+        match self.create_move(algebraic_notation) {
+            Some(mv) => {
+                self.board.unmake_move(&mv);
+                self.side_to_move = if self.side_to_move == Color::White {
+                    Color::Black
+                } else {
+                    Color::White
+                }
+            }
+            None => (),
+        }
+    }
+
     pub fn generate_moves(&mut self) -> Vec<String> {
         let moves = self.board.generate_moves(self.side_to_move);
 

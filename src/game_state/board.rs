@@ -123,12 +123,12 @@ impl Piece {
 pub struct Move {
     pub from: i16,
     pub to: i16,
-    pub piece: Piece,                     // The moving piece
-    pub captured_piece: Piece,            // Piece captured (Empty squares count as pieces)
-    pub promotion: Option<Piece>,         // Promotion piece (if any)
-    pub castling: Option<CastlingInfo>,   // Castling information
-    pub en_passant: bool,                 // Whether this is an en passant capture
-    pub en_passant_square: Option<i16>,   // Set when pawn moves two squares
+    pub piece: Piece,                                     // The moving piece
+    pub captured_piece: Piece, // Piece captured (Empty squares count as pieces)
+    pub promotion: Option<Piece>, // Promotion piece (if any)
+    pub castling: Option<CastlingInfo>, // Castling information
+    pub en_passant: bool,      // Whether this is an en passant capture
+    pub en_passant_square: Option<i16>, // Set when pawn moves two squares
     pub previous_en_passant: Option<i16>, // Previous en passant target
     pub previous_castling_rights: Option<CastlingRights>, // Previous castling rights
 }
@@ -176,9 +176,15 @@ impl ChessBoard {
                 || (from == black_king_from && to == black_king_to)
             {
                 let (rook_from, rook_to) = if from == white_king_from {
-                    (self.algebraic_to_internal("h1"), self.algebraic_to_internal("f1"))
+                    (
+                        self.algebraic_to_internal("h1"),
+                        self.algebraic_to_internal("f1"),
+                    )
                 } else {
-                    (self.algebraic_to_internal("h8"), self.algebraic_to_internal("f8"))
+                    (
+                        self.algebraic_to_internal("h8"),
+                        self.algebraic_to_internal("f8"),
+                    )
                 };
                 let rook_piece = if piece.is_white() {
                     Piece::WhiteRook
@@ -200,9 +206,15 @@ impl ChessBoard {
                 || (from == black_king_from && to == black_king_to)
             {
                 let (rook_from, rook_to) = if from == white_king_from {
-                    (self.algebraic_to_internal("a1"), self.algebraic_to_internal("d1"))
+                    (
+                        self.algebraic_to_internal("a1"),
+                        self.algebraic_to_internal("d1"),
+                    )
                 } else {
-                    (self.algebraic_to_internal("a8"), self.algebraic_to_internal("d8"))
+                    (
+                        self.algebraic_to_internal("a8"),
+                        self.algebraic_to_internal("d8"),
+                    )
                 };
                 let rook_piece = if piece.is_white() {
                     Piece::WhiteRook
@@ -571,34 +583,36 @@ impl ChessBoard {
         match (color, mv.from) {
             (Color::White, square) if square == white_rook_queenside => {
                 self.castling_rights.white_queenside = false
-            },
+            }
             (Color::White, square) if square == white_rook_kingside => {
                 self.castling_rights.white_kingside = false
-            },
+            }
             (Color::Black, square) if square == black_rook_queenside => {
                 self.castling_rights.black_queenside = false
-            },
+            }
             (Color::Black, square) if square == black_rook_kingside => {
                 self.castling_rights.black_kingside = false
-            },
+            }
             _ => {}
         }
 
         // If a rook is captured, lose corresponding castling right
-        if (mv.captured_piece != Piece::EmptySquare) && (mv.captured_piece.get_type() == PieceType::Rook) {
+        if (mv.captured_piece != Piece::EmptySquare)
+            && (mv.captured_piece.get_type() == PieceType::Rook)
+        {
             match (mv.captured_piece.get_color(), mv.to) {
                 (Color::White, square) if square == white_rook_queenside => {
                     self.castling_rights.white_queenside = false
-                },
+                }
                 (Color::White, square) if square == white_rook_kingside => {
                     self.castling_rights.white_kingside = false
-                },
+                }
                 (Color::Black, square) if square == black_rook_queenside => {
                     self.castling_rights.black_queenside = false
-                },
+                }
                 (Color::Black, square) if square == black_rook_kingside => {
                     self.castling_rights.black_kingside = false
-                },
+                }
                 _ => {}
             }
         }
@@ -644,7 +658,6 @@ impl ChessBoard {
 
     // Given a move, update the board
     pub fn make_move(&mut self, mv: &Move) {
-
         self.update_castling_rights(mv);
 
         let piece = mv.piece;
