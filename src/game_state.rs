@@ -1,9 +1,8 @@
 pub mod board;
-pub use crate::game_state::board::CastlingRights;
-pub use crate::game_state::board::ChessBoard;
-pub use crate::game_state::board::Color;
-pub use crate::game_state::board::Move;
-pub use crate::game_state::board::Piece;
+pub use board::CastlingRights;
+pub use board::ChessBoard;
+pub use board::Move;
+pub use board::piece::{Color, Piece};
 
 #[derive(Clone)]
 pub struct SearchConfiguration {
@@ -232,11 +231,7 @@ impl GameState {
         match self.create_move(algebraic_notation) {
             Some(mv) => {
                 self.board.make_move(&mv);
-                self.side_to_move = if self.side_to_move == Color::White {
-                    Color::Black
-                } else {
-                    Color::White
-                }
+                self.side_to_move = self.side_to_move.opposite();
             }
             None => (),
         }
@@ -246,11 +241,7 @@ impl GameState {
         match self.create_move(algebraic_notation) {
             Some(mv) => {
                 self.board.unmake_move(&mv);
-                self.side_to_move = if self.side_to_move == Color::White {
-                    Color::Black
-                } else {
-                    Color::White
-                }
+                self.side_to_move = self.side_to_move.opposite();
             }
             None => (),
         }
