@@ -1,6 +1,7 @@
 pub mod moves;
 pub mod piece;
 pub mod piece_list;
+pub mod search;
 
 use moves::Move;
 use piece::{Color, Piece, PieceType};
@@ -14,7 +15,7 @@ pub struct CastlingRights {
     pub black_kingside: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct CastlingInfo {
     pub rook_from: i16,
     pub rook_to: i16,
@@ -83,20 +84,18 @@ impl ChessBoard {
         material
     }
 
-    pub fn evaluate(&mut self, moves: Vec<Move>, side_to_move: Color) -> Vec<(i64, Move)> {
-        let side = if side_to_move == Color::White { 1 } else { -1 };
-        let mut moves_scores = Vec::new();
+    fn evaluate(&self) -> i64 {
 
-        for mv in moves {
-            self.make_move(&mv);
-            let score = self.material_score(&self.piece_list) * side;
-            self.unmake_move(&mv);
+        self.material_score(&self.piece_list)
+    }
 
-            moves_scores.push((score, mv));
-        }
+    pub fn is_checkmate(&mut self, color: Color) -> bool {
+        let moves = self.generate_moves(color);
+        moves.is_empty() && self.is_in_check(color)
+    }
 
-        moves_scores.sort_by(|m, n| n.0.cmp(&m.0));
-        moves_scores
+    pub fn is_in_check(&self, color: Color) -> bool {
+        self.piece_list.is_king_in_check(&self, color)
     }
 
     pub fn from_uci(&self, uci_notation: &str) -> Option<Move> {
@@ -397,17 +396,9 @@ impl ChessBoard {
         // We clone the board so that the piece-list
         // can do and undo moves to check for legal moves
         let mut board_copy = self.clone();
-        let moves = self
-            .piece_list
-            .generate_legal_moves(&mut board_copy, side_to_move);
 
-        if moves.is_empty() {
-            None
-        } else {
-            let scored_moves = self.evaluate(moves, side_to_move);
-            let (_, best_move) = &scored_moves[0]; // Moves are sorted from best to worst
-            Some(best_move.clone())
-        }
+        let (_, best_move) = search::pure_minimax_search(&mut board_copy, 4, side_to_move);
+        Some(best_move)
     }
 
     pub fn print_board(&self) {

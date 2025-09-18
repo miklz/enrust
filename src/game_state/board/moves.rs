@@ -3,7 +3,7 @@ use crate::game_state::ChessBoard;
 use crate::game_state::board::CastlingInfo;
 use crate::game_state::board::CastlingRights;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Move {
     pub from: i16,
     pub to: i16,
@@ -312,5 +312,9 @@ impl Move {
         };
 
         format!("{}{}{}", from_square, to_square, promotion_suffix)
+    }
+
+    pub fn is_capture(&self) -> bool {
+        self.captured_piece.is_valid_piece()
     }
 }

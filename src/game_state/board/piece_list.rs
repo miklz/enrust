@@ -22,6 +22,27 @@ pub struct PieceList {
 }
 
 impl PieceList {
+    pub fn is_king_in_check(&self, chess_board: &ChessBoard, color: Color) -> bool {
+        match color {
+            Color::White => {
+                if let Some(&white_king) = self.white_king_list.get(0) {
+                    if self.is_square_attacked(chess_board, white_king, Color::Black) {
+                        return true;
+                    }
+                }
+            }
+            Color::Black => {
+                if let Some(&black_king) = self.black_king_list.get(0) {
+                    if self.is_square_attacked(chess_board, black_king, Color::White) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
+    }
+
     fn is_king_safe(&mut self, chess_board: &mut ChessBoard, color: Color, mv: &Move) -> bool {
         chess_board.make_move(&mv);
         // Update piece lists to match board state after move execution.

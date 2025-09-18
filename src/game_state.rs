@@ -310,6 +310,10 @@ impl GameState {
     pub fn print_board(&self) {
         self.board.print_board();
     }
+
+    pub fn get_chess_board(&self) -> &ChessBoard {
+        &self.board
+    }
 }
 
 impl Default for GameState {
