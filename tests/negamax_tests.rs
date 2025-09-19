@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod minimax_tests {
+mod negamax_tests {
     use enrust::game_state::GameState;
     use enrust::game_state::ChessBoard;
     use enrust::game_state::Color;
@@ -12,10 +12,10 @@ mod minimax_tests {
     }
 
     #[test]
-    fn test_minimax_depth_1_initial_position() {
+    fn test_negamax_depth_1_initial_position() {
         let mut game = setup_test_game("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
-        let (score, best_move) = pure_minimax_search(&mut game, 1, Color::White);
+        let (score, best_move) = pure_negamax_search(&mut game, 1, Color::White);
 
         // At depth 1, should find one of the 20 possible moves
         let moves = game.generate_moves(Color::White);
@@ -28,11 +28,11 @@ mod minimax_tests {
     }
 
     #[test]
-    fn test_minimax_checkmate_white() {
+    fn test_negamax_checkmate_white() {
         // White to move and checkmate black
         let mut game = setup_test_game("7R/8/8/8/8/1K6/8/1k6 w - - 0 1");
 
-        let (score, best_move) = pure_minimax_search(&mut game, 3, Color::White);
+        let (score, best_move) = pure_negamax_search(&mut game, 3, Color::White);
 
         // Should find checkmate
         assert!(score > 10000, "Should find winning position, score: {}", score);
@@ -45,39 +45,39 @@ mod minimax_tests {
     }
 
     #[test]
-    fn test_minimax_checkmate_black() {
+    fn test_negamax_checkmate_black() {
         // Black to move and checkmate white
         let mut game = setup_test_game("7r/8/8/8/8/1k6/8/1K6 b - - 0 1");
 
-        let (score, best_move) = pure_minimax_search(&mut game, 3, Color::Black);
+        let (score, best_move) = pure_negamax_search(&mut game, 3, Color::Black);
 
         // Should find checkmate (negative score from black's perspective)
         assert!(score < -10000, "Should find winning position for black, score: {}", score);
 
-        let best_move = best_move.unwrap();
         // The move should be checkmate
+        let best_move = best_move.unwrap();
         game.make_move(&best_move);
         assert!(game.is_checkmate(Color::White), "Move should be checkmate");
         game.unmake_move(&best_move);
     }
 
     #[test]
-    fn test_minimax_stalemate() {
+    fn test_negamax_stalemate() {
         // Stalemate position - black to move, no legal moves but not in check
         let mut game = setup_test_game("k7/8/1K6/8/8/8/8/8 b - - 0 1");
 
-        let (score, _) = pure_minimax_search(&mut game, 1, Color::Black);
+        let (score, _) = pure_negamax_search(&mut game, 1, Color::Black);
 
         // Should recognize stalemate (score = 0)
         assert_eq!(score, 0, "Should recognize stalemate, got score: {}", score);
     }
 
     #[test]
-    fn test_minimax_capture_priority() {
+    fn test_negamax_capture_priority() {
         // White can capture black queen with pawn
         let mut game = setup_test_game("k7/8/8/3q4/3Q4/8/8/K7 w - - 0 1");
 
-        let (score, best_move) = pure_minimax_search(&mut game, 2, Color::White);
+        let (score, best_move) = pure_negamax_search(&mut game, 2, Color::White);
 
         // Should prefer capturing the queen (d4xd5)
         let expected_move = game.from_uci("d4d5").expect("Should create capture move");
@@ -90,11 +90,11 @@ mod minimax_tests {
     }
 
     #[test]
-    fn test_minimax_promotion() {
+    fn test_negamax_promotion() {
         // White pawn can promote to queen
         let mut game = setup_test_game("k7/3P4/8/8/8/8/8/K7 w - - 0 1");
 
-        let (score, best_move) = pure_minimax_search(&mut game, 2, Color::White);
+        let (score, best_move) = pure_negamax_search(&mut game, 2, Color::White);
 
         // Should promote to queen (b7b8q)
         let promotion_move = game.from_uci("d7d8q").expect("Should create promotion move");
@@ -107,11 +107,11 @@ mod minimax_tests {
     }
 
     #[test]
-    fn test_minimax_avoids_checkmate() {
+    fn test_negamax_avoids_checkmate() {
         // White can be checkmated next move if he doesn't prevent it
         let mut game = setup_test_game("k7/8/8/8/8/8/2r5/KR6 w - - 0 1");
 
-        let (score, best_move) = pure_minimax_search(&mut game, 2, Color::White);
+        let (score, best_move) = pure_negamax_search(&mut game, 2, Color::White);
 
         // Should avoid the checkmate by moving king or blocking
         let best_move = best_move.unwrap();
@@ -125,13 +125,13 @@ mod minimax_tests {
     }
 
     #[test]
-    fn test_minimax_depth_consistency() {
+    fn test_negamax_depth_consistency() {
         let mut game = setup_test_game("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
         // Test that deeper search gives better (or equal) results
-        let (score_depth_1, move_1) = pure_minimax_search(&mut game, 1, Color::White);
-        let (score_depth_2, move_2) = pure_minimax_search(&mut game, 2, Color::White);
-        let (score_depth_3, move_3) = pure_minimax_search(&mut game, 3, Color::White);
+        let (score_depth_1, move_1) = pure_negamax_search(&mut game, 1, Color::White);
+        let (score_depth_2, move_2) = pure_negamax_search(&mut game, 2, Color::White);
+        let (score_depth_3, move_3) = pure_negamax_search(&mut game, 3, Color::White);
 
         // Deeper search should find at least as good moves
         // Note: Sometimes different depths can find different equally good moves
@@ -146,14 +146,14 @@ mod minimax_tests {
     }
 
     #[test]
-    fn test_minimax_symmetric_evaluation() {
+    fn test_negamax_symmetric_evaluation() {
         // Symmetric position should evaluate to 0
         let mut game = setup_test_game("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
-        let (score_white, _) = pure_minimax_search(&mut game, 2, Color::White);
+        let (score_white, _) = pure_negamax_search(&mut game, 2, Color::White);
 
         // Now from black's perspective (should be symmetric)
-        let (score_black, _) = pure_minimax_search(&mut game, 2, Color::Black);
+        let (score_black, _) = pure_negamax_search(&mut game, 2, Color::Black);
 
         // Scores should be approximately opposite (white positive, black negative)
         assert!((score_white + score_black).abs() < 50,
@@ -162,11 +162,11 @@ mod minimax_tests {
     }
 
     #[test]
-    fn test_minimax_material_advantage() {
+    fn test_negamax_material_advantage() {
         // White has extra queen
         let mut game = setup_test_game("k7/8/8/8/8/8/1Q6/K7 w - - 0 1");
 
-        let (score, _) = pure_minimax_search(&mut game, 1, Color::White);
+        let (score, _) = pure_negamax_search(&mut game, 1, Color::White);
 
         // Should show significant advantage (around +900 for queen)
         assert!(score > 800 && score < 1000,
@@ -174,11 +174,11 @@ mod minimax_tests {
     }
 
     #[test]
-    fn test_minimax_always_returns_legal_move() {
+    fn test_negamax_always_returns_legal_move() {
         let mut game = setup_test_game("k7/8/8/8/8/8/8/K7 w - - 0 1"); // Only kings
 
         for depth in 1..=3 {
-            let (score, best_move) = pure_minimax_search(&mut game, depth, Color::White);
+            let (score, best_move) = pure_negamax_search(&mut game, depth, Color::White);
 
             // Move should be legal
             let legal_moves = game.generate_moves(Color::White);

@@ -397,8 +397,8 @@ impl ChessBoard {
         // can do and undo moves to check for legal moves
         let mut board_copy = self.clone();
 
-        let (_, best_move) = search::pure_minimax_search(&mut board_copy, 4, side_to_move);
-        Some(best_move)
+        let (_, best_move) = search::minimax_alpha_beta_search(&mut board_copy, 4, side_to_move);
+        best_move
     }
 
     pub fn print_board(&self) {
