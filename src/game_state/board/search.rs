@@ -56,12 +56,12 @@ pub fn pure_minimax_search(game: &mut ChessBoard, depth: u64, side_to_move: Colo
         game.unmake_move(&mv);
 
         if side_to_move == Color::White {
-            if score > best_score {
+            if score >= best_score {
                 best_score = score;
                 best_move = Some(mv.clone());
             }
         } else {
-            if score < best_score {
+            if score <= best_score {
                 best_score = score;
                 best_move = Some(mv.clone());
             }
@@ -187,13 +187,13 @@ pub fn minimax_alpha_beta_search(
         game.unmake_move(&mv);
 
         if side_to_move == Color::White {
-            if score > best_score {
+            if score >= best_score {
                 best_score = score;
                 best_move = Some(mv.clone());
                 alpha = alpha.max(score)
             }
         } else {
-            if score < best_score {
+            if score <= best_score {
                 best_score = score;
                 best_move = Some(mv.clone());
                 beta = beta.min(score);

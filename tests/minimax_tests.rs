@@ -190,4 +190,15 @@ mod minimax_tests {
             assert_eq!(score, 0, "Depth {}: Kings only should be equal, got: {}", depth, score);
         }
     }
+
+    #[test]
+    fn test_problematic_position() {
+        let fen = "1R1nk2r/p1Npb1pp/8/4Q3/q3P3/2B2N2/5PPP/5RK1 b - - 7 28";
+        let mut game = setup_test_game(fen);
+
+        let (score, best_move) = pure_minimax_search(&mut game, 3, Color::Black);
+
+        assert!(score > 10000, "Black is being mated, score should be very high for white");
+        assert!(best_move.is_some(), "There's two forced moves for black");
+    }
 }

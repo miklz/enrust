@@ -84,7 +84,7 @@ impl ChessBoard {
         material
     }
 
-    fn evaluate(&self) -> i64 {
+    pub fn evaluate(&self) -> i64 {
 
         self.material_score(&self.piece_list)
     }
