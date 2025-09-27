@@ -41,7 +41,11 @@ fn pure_minimax(game: &mut ChessBoard, depth: u64, side_to_move: Color) -> i64 {
     }
 }
 
-pub fn pure_minimax_search(game: &mut ChessBoard, depth: u64, side_to_move: Color) -> (i64, Option<Move>) {
+pub fn pure_minimax_search(
+    game: &mut ChessBoard,
+    depth: u64,
+    side_to_move: Color,
+) -> (i64, Option<Move>) {
     let mut best_score = if side_to_move == Color::White {
         i64::MIN
     } else {
@@ -74,7 +78,7 @@ pub fn pure_minimax_search(game: &mut ChessBoard, depth: u64, side_to_move: Colo
 
 fn pure_negamax(game: &mut ChessBoard, depth: i64, side_to_move: Color) -> i64 {
     if depth == 0 {
-        let perspective = if side_to_move == Color::White {1} else {-1};
+        let perspective = if side_to_move == Color::White { 1 } else { -1 };
         return game.evaluate() * perspective;
     }
 
@@ -90,7 +94,11 @@ fn pure_negamax(game: &mut ChessBoard, depth: i64, side_to_move: Color) -> i64 {
     score
 }
 
-pub fn pure_negamax_search(game: &mut ChessBoard, depth: i64, side_to_move: Color) -> (i64, Option<Move>) {
+pub fn pure_negamax_search(
+    game: &mut ChessBoard,
+    depth: i64,
+    side_to_move: Color,
+) -> (i64, Option<Move>) {
     let mut best_move = None;
     let mut best_score = i64::MIN;
 
@@ -106,7 +114,7 @@ pub fn pure_negamax_search(game: &mut ChessBoard, depth: i64, side_to_move: Colo
         }
     }
 
-    let perspective = if side_to_move == Color::White {1} else {-1};
+    let perspective = if side_to_move == Color::White { 1 } else { -1 };
     best_score = best_score * perspective;
 
     // Return best move found, or none
@@ -118,7 +126,7 @@ fn minimax_alpha_beta(
     depth: u64,
     mut alpha: i64,
     mut beta: i64,
-    side_to_move: Color
+    side_to_move: Color,
 ) -> i64 {
     // Terminal node check
     if depth == 0 {
@@ -167,7 +175,7 @@ fn minimax_alpha_beta(
 pub fn minimax_alpha_beta_search(
     game: &mut ChessBoard,
     depth: u64,
-    side_to_move: Color
+    side_to_move: Color,
 ) -> (i64, Option<Move>) {
     let mut best_score = if side_to_move == Color::White {
         i64::MIN
@@ -183,7 +191,8 @@ pub fn minimax_alpha_beta_search(
 
     for mv in moves {
         game.make_move(&mv);
-        let score = minimax_alpha_beta(game, depth - 1, i64::MIN, i64::MAX, side_to_move.opposite());
+        let score =
+            minimax_alpha_beta(game, depth - 1, i64::MIN, i64::MAX, side_to_move.opposite());
         game.unmake_move(&mv);
 
         if side_to_move == Color::White {
@@ -204,7 +213,12 @@ pub fn minimax_alpha_beta_search(
     (best_score, best_move)
 }
 
-pub fn quiescence(chess_board: &mut ChessBoard, mut alpha: i64, beta: i64, side_to_move: Color) -> i64 {
+pub fn quiescence(
+    chess_board: &mut ChessBoard,
+    mut alpha: i64,
+    beta: i64,
+    side_to_move: Color,
+) -> i64 {
     // Evaluate the current (possibly noisy) position
     let stand_pat = chess_board.evaluate();
 

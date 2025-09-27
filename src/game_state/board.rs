@@ -85,7 +85,6 @@ impl ChessBoard {
     }
 
     pub fn evaluate(&self) -> i64 {
-
         self.material_score(&self.piece_list)
     }
 
@@ -95,7 +94,7 @@ impl ChessBoard {
     }
 
     pub fn is_in_check(&self, color: Color) -> bool {
-        self.piece_list.is_king_in_check(&self, color)
+        self.piece_list.is_king_in_check(&self, color).len() > 0
     }
 
     pub fn from_uci(&self, uci_notation: &str) -> Option<Move> {
@@ -171,6 +170,33 @@ impl ChessBoard {
         // So:
         row1.abs_diff(row2) == col1.abs_diff(col2)
         // ensures the movement was exactly diagonal.
+    }
+
+    fn get_squares_between(&self, from: i16, to: i16) -> Vec<i16> {
+        let mut squares = Vec::new();
+
+        let from_rank = self.square_rank(from);
+        let from_file = self.square_file(from);
+        let to_rank = self.square_rank(to);
+        let to_file = self.square_file(to);
+
+        let rank_diff = to_rank - from_rank;
+        let file_diff = to_file - from_file;
+
+        // Only straight or diagonal lines have squares between them
+        if rank_diff == 0 || file_diff == 0 || rank_diff.abs() == file_diff.abs() {
+            let rank_step = rank_diff.signum();
+            let file_step = file_diff.signum();
+            let steps = rank_diff.abs().max(file_diff.abs());
+
+            for i in 1..steps {
+                let rank = from_rank + i * rank_step;
+                let file = from_file + i * file_step;
+                squares.push(rank * self.board_width + file);
+            }
+        }
+
+        squares
     }
 
     fn get_en_passant_target(&self) -> Option<i16> {
@@ -397,7 +423,7 @@ impl ChessBoard {
         // can do and undo moves to check for legal moves
         let mut board_copy = self.clone();
 
-        let (_, best_move) = search::minimax_alpha_beta_search(&mut board_copy, 4, side_to_move);
+        let (_, best_move) = search::minimax_alpha_beta_search(&mut board_copy, 5, side_to_move);
         best_move
     }
 

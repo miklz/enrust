@@ -281,6 +281,27 @@ impl Move {
         let en_passant =
             Self::detect_en_passant(chess_board, moving_piece, from, to, captured_piece);
 
+        // Detect en passant target square for double pawn moves
+        let en_passant_square = if moving_piece.get_type() == PieceType::Pawn {
+            let rank_from = chess_board.square_rank(from);
+            let rank_to = chess_board.square_rank(to);
+            let rank_diff = rank_to.abs_diff(rank_from);
+
+            // Check if it's a double move forward (2 squares)
+            if rank_diff == 2 {
+                // Calculate the en passant target square (the square behind the pawn)
+                if moving_piece.is_white() {
+                    Some(to - chess_board.board_width) // Square behind the pawn (one rank down)
+                } else {
+                    Some(to + chess_board.board_width) // Square behind the pawn (one rank up)
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         Some(Self {
             from,
             to,
@@ -289,7 +310,7 @@ impl Move {
             promotion,
             castling,
             en_passant,
-            en_passant_square: None,
+            en_passant_square,
             previous_en_passant: chess_board.get_en_passant_target(),
             previous_castling_rights: Some(chess_board.castling_rights),
         })

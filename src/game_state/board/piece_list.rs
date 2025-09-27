@@ -1,3 +1,6 @@
+use smallvec::{SmallVec, smallvec};
+use std::collections::HashMap;
+
 use crate::game_state::board::ChessBoard;
 use crate::game_state::board::Color;
 use crate::game_state::board::Move;
@@ -22,65 +25,52 @@ pub struct PieceList {
 }
 
 impl PieceList {
-    pub fn is_king_in_check(&self, chess_board: &ChessBoard, color: Color) -> bool {
-        match color {
-            Color::White => {
-                if let Some(&white_king) = self.white_king_list.get(0) {
-                    if self.is_square_attacked(chess_board, white_king, Color::Black) {
-                        return true;
-                    }
-                }
-            }
-            Color::Black => {
-                if let Some(&black_king) = self.black_king_list.get(0) {
-                    if self.is_square_attacked(chess_board, black_king, Color::White) {
-                        return true;
-                    }
-                }
-            }
+    pub fn is_king_in_check(&self, chess_board: &ChessBoard, color: Color) -> Vec<(Piece, i16)> {
+        let mut attackers = Vec::new();
+
+        if let Some(king) = self.get_king_square(color) {
+            attackers.append(&mut self.get_attackers(chess_board, king, color.opposite()));
         }
 
-        false
+        attackers
     }
 
-    fn is_king_safe(&mut self, chess_board: &mut ChessBoard, color: Color, mv: &Move) -> bool {
-        chess_board.make_move(&mv);
-        // Update piece lists to match board state after move execution.
-        // CRITICAL: Without this synchronization, the piece lists contain outdated
-        // positions, leading to incorrect king safety evaluation. For example:
-        // - The moved piece still appears at its original square in the lists
-        // - Captured pieces remain in the lists but not on the board
-        // - This mismatch causes attack detection to fail, allowing illegal moves
-        //   that leave the king in check to be considered "safe"
-        // A better architecture is needed to avoid this problem.
-        self.make_move(&mv);
+    fn get_attackers(
+        &self,
+        chess_board: &ChessBoard,
+        king_square: i16,
+        by_color: Color,
+    ) -> Vec<(Piece, i16)> {
+        let mut attackers = Vec::new();
 
-        match color {
-            Color::White => {
-                if let Some(&white_king) = self.white_king_list.get(0) {
-                    if self.is_square_attacked(chess_board, white_king, Color::Black) {
-                        chess_board.unmake_move(&mv);
-                        self.unmake_move(&mv);
-                        return false;
-                    }
-                }
-            }
-            Color::Black => {
-                if let Some(&black_king) = self.black_king_list.get(0) {
-                    if self.is_square_attacked(chess_board, black_king, Color::White) {
-                        chess_board.unmake_move(&mv);
-                        self.unmake_move(&mv);
-                        return false;
-                    }
-                }
+        let attacker_pieces = match by_color {
+            Color::White => [
+                Piece::WhiteQueen,
+                Piece::WhiteRook,
+                Piece::WhiteBishop,
+                Piece::WhiteKnight,
+                Piece::WhitePawn,
+                Piece::WhiteKing,
+            ],
+            Color::Black => [
+                Piece::BlackQueen,
+                Piece::BlackRook,
+                Piece::BlackBishop,
+                Piece::BlackKnight,
+                Piece::BlackPawn,
+                Piece::BlackKing,
+            ],
+        };
+
+        for attack_piece in attacker_pieces {
+            if let Some((attacker_piece, attacker_square)) =
+                self.is_attacked_by_piece(chess_board, king_square, attack_piece, by_color)
+            {
+                attackers.push((attacker_piece, attacker_square));
             }
         }
 
-        //chess_board.print_board();
-        chess_board.unmake_move(&mv);
-        self.unmake_move(&mv);
-
-        true
+        attackers
     }
 
     pub fn generate_legal_moves(
@@ -88,25 +78,74 @@ impl PieceList {
         chess_board: &mut ChessBoard,
         color: Color,
     ) -> Vec<Move> {
-        let mut all_moves = self.generate_moves(chess_board, color);
+        let king_attackers = self.is_king_in_check(chess_board, color);
 
-        all_moves.retain(|mv| self.is_king_safe(chess_board, color, &mv));
-        all_moves
+        if king_attackers.is_empty() {
+            return self.generate_moves(chess_board, color);
+        } else if king_attackers.len() == 1 {
+            return self.generate_attacker_captures(chess_board, king_attackers, color);
+        } else {
+            // If multiple attackers, only king moves are possible
+            return self.generate_king_moves(chess_board, color);
+        }
     }
 
-    fn generate_moves(&self, chess_board: &ChessBoard, color: Color) -> Vec<Move> {
+    fn generate_attacker_captures(
+        &mut self,
+        chess_board: &mut ChessBoard,
+        king_attackers: Vec<(Piece, i16)>,
+        color: Color,
+    ) -> Vec<Move> {
+        let mut valid_moves = Vec::new();
+
+        let Some(king_square) = self.get_king_square(color) else {
+            // If there's no king than return empty move list
+            return valid_moves;
+        };
+
+        let (attacker_piece, attacker_square) = &king_attackers[0];
+
+        // Get squares that block attacker if attacker is a sliding piece
+        let mut blocking_squares = vec![*attacker_square];
+        match attacker_piece.get_type() {
+            PieceType::Queen | PieceType::Rook | PieceType::Bishop => {
+                let mut squares = chess_board.get_squares_between(*attacker_square, king_square);
+
+                blocking_squares.append(&mut squares);
+            }
+            _ => {}
+        }
+
+        let pinned_pieces = self.detect_pinned_pieces(chess_board, color);
+
+        valid_moves = self.generate_queen_moves(chess_board, &pinned_pieces, color);
+        valid_moves.append(&mut self.generate_rook_moves(chess_board, &pinned_pieces, color));
+        valid_moves.append(&mut self.generate_bishop_moves(chess_board, &pinned_pieces, color));
+        valid_moves.append(&mut self.generate_knight_moves(chess_board, &pinned_pieces, color));
+        valid_moves.append(&mut self.generate_pawn_moves(chess_board, &pinned_pieces, color));
+
+        // Only consider moves that block the attacker or capture it
+        valid_moves.retain(|mv| blocking_squares.contains(&mv.to));
+        valid_moves.append(&mut self.generate_king_moves(chess_board, color));
+
+        return valid_moves;
+    }
+
+    fn generate_moves(&mut self, chess_board: &mut ChessBoard, color: Color) -> Vec<Move> {
+        let pinned_pieces = self.detect_pinned_pieces(chess_board, color);
+
         let mut all_moves = self.generate_king_moves(chess_board, color);
-        all_moves.append(&mut self.generate_queen_moves(chess_board, color));
-        all_moves.append(&mut self.generate_rook_moves(chess_board, color));
-        all_moves.append(&mut self.generate_bishop_moves(chess_board, color));
-        all_moves.append(&mut self.generate_knight_moves(chess_board, color));
-        all_moves.append(&mut self.generate_pawn_moves(chess_board, color));
         all_moves.append(&mut self.generate_castling_moves(chess_board, color));
+        all_moves.append(&mut self.generate_queen_moves(chess_board, &pinned_pieces, color));
+        all_moves.append(&mut self.generate_rook_moves(chess_board, &pinned_pieces, color));
+        all_moves.append(&mut self.generate_bishop_moves(chess_board, &pinned_pieces, color));
+        all_moves.append(&mut self.generate_knight_moves(chess_board, &pinned_pieces, color));
+        all_moves.append(&mut self.generate_pawn_moves(chess_board, &pinned_pieces, color));
 
         all_moves
     }
 
-    fn generate_king_moves(&self, chess_board: &ChessBoard, color: Color) -> Vec<Move> {
+    fn generate_king_moves(&mut self, chess_board: &mut ChessBoard, color: Color) -> Vec<Move> {
         let mut moves = Vec::new();
         let (king, king_list) = match color {
             Color::White => (Piece::WhiteKing, &self.white_king_list),
@@ -126,12 +165,25 @@ impl PieceList {
 
         for &square in king_list {
             for ray in king_rays {
-                let target = chess_board.get_piece_on_square(square + ray);
+                let position = square + ray;
+
+                // Remove the king to not have the king blocking a square that would otherwise being attacked
+                chess_board.set_piece_on_square(Piece::EmptySquare, square);
+                // If king will be in check in this position, don't add to possible moves
+                if self.is_square_attacked(chess_board, position, color.opposite()) {
+                    // Restore king on the board
+                    chess_board.set_piece_on_square(king, square);
+                    continue;
+                }
+                // Restore king on the board
+                chess_board.set_piece_on_square(king, square);
+
+                let target = chess_board.get_piece_on_square(position);
                 if target.is_empty() || target.is_opponent(color) {
                     moves.push(Move::create_move(
                         chess_board,
                         square,
-                        square + ray,
+                        position,
                         king,
                         target,
                     ));
@@ -142,14 +194,19 @@ impl PieceList {
         moves
     }
 
-    fn generate_queen_moves(&self, chess_board: &ChessBoard, color: Color) -> Vec<Move> {
+    fn generate_queen_moves(
+        &mut self,
+        chess_board: &mut ChessBoard,
+        pinned_pieces: &HashMap<i16, i16>,
+        color: Color,
+    ) -> Vec<Move> {
         let mut moves = Vec::new();
         let (queen, queen_list) = match color {
             Color::White => (Piece::WhiteQueen, &self.white_queen_list),
             Color::Black => (Piece::BlackQueen, &self.black_queen_list),
         };
 
-        let queen_rays: [i16; 8] = [
+        let queen_possible_rays: SmallVec<[i16; 4]> = smallvec![
             -1,
             1,
             chess_board.board_width,
@@ -161,11 +218,15 @@ impl PieceList {
         ];
 
         for &square in queen_list {
-            for ray in queen_rays {
-                let mut position = square;
-                loop {
-                    position += ray;
+            let mut queen_rays = queen_possible_rays.clone();
 
+            if let Some(pin_direction) = pinned_pieces.get(&square) {
+                queen_rays.retain(|dir| (*dir == *pin_direction) || (*dir == -*pin_direction));
+            }
+
+            for ray in &queen_rays {
+                let mut position = square + ray;
+                loop {
                     let target = chess_board.get_piece_on_square(position);
                     if target.is_empty() {
                         moves.push(Move::create_move(
@@ -189,6 +250,8 @@ impl PieceList {
                     if target.is_sentinel() || target.is_friend(color) {
                         break;
                     }
+
+                    position += ray;
                 }
             }
         }
@@ -196,7 +259,12 @@ impl PieceList {
         moves
     }
 
-    fn generate_rook_moves(&self, chess_board: &ChessBoard, color: Color) -> Vec<Move> {
+    fn generate_rook_moves(
+        &mut self,
+        chess_board: &mut ChessBoard,
+        pinned_pieces: &HashMap<i16, i16>,
+        color: Color,
+    ) -> Vec<Move> {
         let mut moves = Vec::new();
 
         let (rook, rook_list) = match color {
@@ -204,14 +272,19 @@ impl PieceList {
             Color::Black => (Piece::BlackRook, &self.black_rook_list),
         };
 
-        let rook_rays: [i16; 4] = [1, -1, -chess_board.board_width, chess_board.board_width];
+        let rook_possible_rays: SmallVec<[i16; 4]> =
+            smallvec![1, -1, -chess_board.board_width, chess_board.board_width];
 
         for &square in rook_list {
-            for ray in rook_rays {
-                let mut position = square;
-                loop {
-                    position += ray;
+            let mut rook_rays = rook_possible_rays.clone();
 
+            if let Some(pin_direction) = pinned_pieces.get(&square) {
+                rook_rays.retain(|dir| (*dir == *pin_direction) || (*dir == -*pin_direction));
+            }
+
+            for ray in &rook_rays {
+                let mut position = square + ray;
+                loop {
                     let target = chess_board.get_piece_on_square(position);
                     if target.is_empty() {
                         moves.push(Move::create_move(
@@ -236,6 +309,8 @@ impl PieceList {
                     if target.is_sentinel() || target.is_friend(color) {
                         break;
                     }
+
+                    position += ray;
                 }
             }
         }
@@ -243,7 +318,12 @@ impl PieceList {
         moves
     }
 
-    fn generate_bishop_moves(&self, chess_board: &ChessBoard, color: Color) -> Vec<Move> {
+    fn generate_bishop_moves(
+        &mut self,
+        chess_board: &mut ChessBoard,
+        pinned_pieces: &HashMap<i16, i16>,
+        color: Color,
+    ) -> Vec<Move> {
         let mut moves = Vec::new();
 
         let (bishop, bishop_list) = match color {
@@ -251,7 +331,7 @@ impl PieceList {
             Color::Black => (Piece::BlackBishop, &self.black_bishop_list),
         };
 
-        let bishop_rays: [i16; 4] = [
+        let bishop_possible_rays: SmallVec<[i16; 4]> = smallvec![
             chess_board.board_width + 1,
             chess_board.board_width - 1,
             -chess_board.board_width + 1,
@@ -259,11 +339,16 @@ impl PieceList {
         ];
 
         for &square in bishop_list {
-            for ray in bishop_rays {
-                let mut position = square;
-                loop {
-                    position += ray;
+            let mut bishop_rays = bishop_possible_rays.clone();
+            // If piece is pinned it can only move along pin direction
+            if let Some(pin_direction) = pinned_pieces.get(&square) {
+                bishop_rays.retain(|dir| (*dir == *pin_direction) || (*dir == -*pin_direction));
+            }
 
+            for ray in &bishop_rays {
+                let mut position = square + ray;
+
+                loop {
                     let target = chess_board.get_piece_on_square(position);
                     if target.is_empty() {
                         moves.push(Move::create_move(
@@ -287,6 +372,8 @@ impl PieceList {
                     if target.is_sentinel() || target.is_friend(color) {
                         break;
                     }
+
+                    position += ray;
                 }
             }
         }
@@ -294,7 +381,12 @@ impl PieceList {
         moves
     }
 
-    fn generate_knight_moves(&self, chess_board: &ChessBoard, color: Color) -> Vec<Move> {
+    fn generate_knight_moves(
+        &mut self,
+        chess_board: &mut ChessBoard,
+        pinned_pieces: &HashMap<i16, i16>,
+        color: Color,
+    ) -> Vec<Move> {
         let mut moves = Vec::new();
 
         let (knight, knight_list) = match color {
@@ -314,6 +406,11 @@ impl PieceList {
         ];
 
         for &square in knight_list {
+            // Knights can't move if pinned (they jump, so any pin makes all moves illegal)
+            if pinned_pieces.contains_key(&square) {
+                continue;
+            }
+
             for ray in knight_rays {
                 let target = chess_board.get_piece_on_square(square + ray);
                 if target.is_empty() || target.is_opponent(color) {
@@ -331,7 +428,12 @@ impl PieceList {
         moves
     }
 
-    fn generate_pawn_moves(&self, chess_board: &ChessBoard, color: Color) -> Vec<Move> {
+    fn generate_pawn_moves(
+        &mut self,
+        chess_board: &mut ChessBoard,
+        pinned_pieces: &HashMap<i16, i16>,
+        color: Color,
+    ) -> Vec<Move> {
         let mut moves = Vec::new();
 
         let (pawn, pawn_list) = match color {
@@ -370,8 +472,46 @@ impl PieceList {
         };
 
         for &square in pawn_list {
+            let mut move_forward = true;
+            let mut capture_left = true;
+            let mut capture_right = true;
+
+            if let Some(pin_direction) = pinned_pieces.get(&square) {
+                // If the pawn is being pinned on horizontal direction
+                // there's no possible move for this pawn
+                if *pin_direction == 1 || *pin_direction == -1 {
+                    continue;
+                }
+
+                // If the pawn is being pinned on the file, than it can move in the forward direction
+                if (*pin_direction == chess_board.board_width)
+                    || (*pin_direction == -chess_board.board_width)
+                {
+                    capture_left = false;
+                    capture_right = false;
+                }
+
+                // If the pawn is being pinned on the right diagonal, than there's a capture
+                // possibility on the right diagonal
+                if (*pin_direction == chess_board.board_width + 1)
+                    || (*pin_direction == -chess_board.board_width + 1)
+                {
+                    move_forward = false;
+                    capture_left = false;
+                }
+
+                // If the pawn is being pinned on the left diagonal, than there's a capture
+                // possibility on the left diagonal
+                if (*pin_direction == chess_board.board_width - 1)
+                    || (*pin_direction == -chess_board.board_width - 1)
+                {
+                    move_forward = false;
+                    capture_right = false;
+                }
+            }
+
             let first_target = chess_board.get_piece_on_square(square + direction);
-            if first_target.is_empty() {
+            if move_forward && first_target.is_empty() {
                 if chess_board.square_rank(square + direction) != promotion_rank {
                     moves.push(Move::create_pawn_move(
                         chess_board,
@@ -400,7 +540,7 @@ impl PieceList {
             }
 
             let target = chess_board.get_piece_on_square(square + direction + 1);
-            if target.is_opponent(color) {
+            if capture_right && target.is_opponent(color) {
                 if chess_board.square_rank(square + direction + 1) != promotion_rank {
                     moves.push(Move::create_pawn_move(
                         chess_board,
@@ -426,21 +566,35 @@ impl PieceList {
                         ));
                     }
                 }
-            } else if Some(square + direction + 1) == chess_board.get_en_passant_target() {
-                moves.push(Move::create_pawn_move(
-                    chess_board,
-                    square,
-                    square + direction + 1,
-                    pawn,
-                    target,
-                    None,
-                    true,
-                    None,
-                ));
+            } else if capture_right
+                && (Some(square + direction + 1) == chess_board.get_en_passant_target())
+            {
+                // Remove the pawns to not having blocking a piece that would give put the king in check
+                chess_board.set_piece_on_square(Piece::EmptySquare, square); // Attacker pawn
+
+                let enemy_pawn = chess_board.get_piece_on_square(square + 1);
+                chess_board.set_piece_on_square(Piece::EmptySquare, square + 1); // Captured pawn
+                // If king would be in check, don't add to possible moves
+                if self.is_king_in_check(chess_board, color).is_empty() {
+                    // Move don't let king in check so we add to the possible moves
+                    moves.push(Move::create_pawn_move(
+                        chess_board,
+                        square,
+                        square + direction + 1,
+                        pawn,
+                        target,
+                        None,
+                        true,
+                        None,
+                    ));
+                }
+                // Restore pawns on the board
+                chess_board.set_piece_on_square(pawn, square); // Attacker pawn
+                chess_board.set_piece_on_square(enemy_pawn, square + 1); // Captured pawn
             }
 
             let target = chess_board.get_piece_on_square(square + direction - 1);
-            if target.is_opponent(color) {
+            if capture_left && target.is_opponent(color) {
                 if chess_board.square_rank(square + direction - 1) != promotion_rank {
                     moves.push(Move::create_pawn_move(
                         chess_board,
@@ -466,21 +620,39 @@ impl PieceList {
                         ));
                     }
                 }
-            } else if Some(square + direction - 1) == chess_board.get_en_passant_target() {
-                moves.push(Move::create_pawn_move(
-                    chess_board,
-                    square,
-                    square + direction - 1,
-                    pawn,
-                    target,
-                    None,
-                    true,
-                    None,
-                ));
+            } else if capture_left
+                && (Some(square + direction - 1) == chess_board.get_en_passant_target())
+            {
+                // Remove the pawns to not having blocking a piece that would give put the king in check
+                chess_board.set_piece_on_square(Piece::EmptySquare, square); // Attacker pawn
+
+                let enemy_pawn = chess_board.get_piece_on_square(square - 1);
+                chess_board.set_piece_on_square(Piece::EmptySquare, square - 1); // Captured pawn
+                // If king would be in check, don't add to possible moves
+                if self.is_king_in_check(chess_board, color).is_empty() {
+                    // Move don't let king in check so we add to the possible moves
+                    moves.push(Move::create_pawn_move(
+                        chess_board,
+                        square,
+                        square + direction - 1,
+                        pawn,
+                        target,
+                        None,
+                        true,
+                        None,
+                    ));
+                }
+
+                // Restore pawns on the board
+                chess_board.set_piece_on_square(pawn, square); // Attacker pawn
+                chess_board.set_piece_on_square(enemy_pawn, square - 1); // Captured pawn
             }
 
             let target = chess_board.get_piece_on_square(square + 2 * direction);
-            if (color == Color::White) && (chess_board.square_rank(square) == double_push_rank) {
+            if move_forward
+                && (color == Color::White)
+                && (chess_board.square_rank(square) == double_push_rank)
+            {
                 if first_target.is_empty() && target.is_empty() {
                     moves.push(Move::create_pawn_move(
                         chess_board,
@@ -495,7 +667,10 @@ impl PieceList {
                 }
             }
 
-            if (color == Color::Black) && (chess_board.square_rank(square) == double_push_rank) {
+            if move_forward
+                && (color == Color::Black)
+                && (chess_board.square_rank(square) == double_push_rank)
+            {
                 if first_target.is_empty() && target.is_empty() {
                     moves.push(Move::create_pawn_move(
                         chess_board,
@@ -990,7 +1165,7 @@ impl PieceList {
             return false;
         }
 
-        // Check if pawn direction is write
+        // Check if pawn direction is right
         if color == Color::White {
             // White pawn always goes up
             if row2 < row1 {
@@ -1004,6 +1179,112 @@ impl PieceList {
         }
 
         true
+    }
+
+    fn get_king_square(&self, color: Color) -> Option<i16> {
+        if color == Color::White {
+            if let Some(king_list) = self.get_list(Piece::WhiteKing) {
+                if let Some(king) = king_list.get(0) {
+                    return Some(*king);
+                }
+            }
+            return None;
+        } else {
+            if let Some(king_list) = self.get_list(Piece::BlackKing) {
+                if let Some(king) = king_list.get(0) {
+                    return Some(*king);
+                }
+            }
+            return None;
+        }
+    }
+
+    fn detect_pinned_pieces(&self, chess_board: &ChessBoard, color: Color) -> HashMap<i16, i16> {
+        let mut pinned_pieces = HashMap::new();
+
+        let Some(king_square) = self.get_king_square(color) else {
+            return pinned_pieces;
+        };
+
+        // Check for pins from each direction
+        for direction in &[
+            -1,
+            1, // Horizontal
+            -chess_board.board_width,
+            chess_board.board_width, // Vertical
+            -chess_board.board_width - 1,
+            -chess_board.board_width + 1, // Diagonals
+            chess_board.board_width - 1,
+            chess_board.board_width + 1,
+        ] {
+            if let Some((pinned_square, pin_direction)) =
+                self.find_pinned_piece_in_direction(chess_board, king_square, *direction, color)
+            {
+                pinned_pieces.insert(pinned_square, pin_direction);
+            }
+        }
+
+        pinned_pieces
+    }
+
+    fn find_pinned_piece_in_direction(
+        &self,
+        chess_board: &ChessBoard,
+        king_square: i16,
+        direction: i16,
+        color: Color,
+    ) -> Option<(i16, i16)> {
+        let mut current = king_square + direction;
+        let mut pinned_piece: Option<i16> = None;
+
+        // Move away from king until we hit a piece or board edge
+        let mut piece = chess_board.get_piece_on_square(current);
+        while !piece.is_sentinel() {
+            if !piece.is_empty() {
+                if piece.get_color() == color {
+                    // First piece we encounter of our color - could be pinned
+                    if pinned_piece.is_none() {
+                        pinned_piece = Some(current);
+                    } else {
+                        // Second piece of our color - no pin in this direction
+                        return None;
+                    }
+                } else {
+                    // Enemy piece - check if it's a slider that can pin
+                    if self.can_piece_pin_in_direction(chess_board, piece, direction) {
+                        return pinned_piece.map(|pin_sq| (pin_sq, direction));
+                    } else {
+                        return None; // Enemy piece can't pin in this direction
+                    }
+                }
+            }
+
+            current += direction;
+            piece = chess_board.get_piece_on_square(current);
+        }
+
+        None
+    }
+
+    fn can_piece_pin_in_direction(
+        &self,
+        chess_board: &ChessBoard,
+        piece: Piece,
+        direction: i16,
+    ) -> bool {
+        match piece.get_type() {
+            PieceType::Queen => true, // Queens can pin in any direction
+            PieceType::Rook => {
+                // Rooks can pin horizontally or vertically
+                direction.abs() == 1 || direction.abs() == chess_board.board_width
+            }
+            PieceType::Bishop => {
+                // Bishops can pin diagonally
+                direction.abs() == chess_board.board_width - 1
+                    || direction.abs() == chess_board.board_width + 1
+            }
+            _ => false, // Other pieces can't pin
+        }
     }
 
     fn can_castle_kingside(
@@ -1165,7 +1446,10 @@ impl PieceList {
         };
 
         for attack_piece in attacker_pieces {
-            if self.is_attacked_by_piece(chess_board, square, attack_piece, by_color) {
+            if self
+                .is_attacked_by_piece(chess_board, square, attack_piece, by_color)
+                .is_some()
+            {
                 return true;
             }
         }
@@ -1179,7 +1463,7 @@ impl PieceList {
         square: i16,
         attack_piece: Piece,
         by_color: Color,
-    ) -> bool {
+    ) -> Option<(Piece, i16)> {
         if let Some(piece_list) = self.get_list(attack_piece) {
             for &piece_square in piece_list {
                 let attacks = match attack_piece.get_type() {
@@ -1194,11 +1478,11 @@ impl PieceList {
                 };
 
                 if attacks {
-                    return true;
+                    return Some((attack_piece, piece_square));
                 }
             }
         }
-        false
+        None
     }
 }
 
