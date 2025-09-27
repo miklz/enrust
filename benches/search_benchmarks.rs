@@ -1,8 +1,10 @@
 use divan::{Bencher, black_box};
-use enrust::game_state::GameState;
 use enrust::game_state::ChessBoard;
 use enrust::game_state::Color;
-use enrust::game_state::board::search::{pure_minimax_search, pure_negamax_search, minimax_alpha_beta_search};
+use enrust::game_state::GameState;
+use enrust::game_state::board::search::{
+    minimax_alpha_beta_search, pure_minimax_search, pure_negamax_search,
+};
 
 fn main() {
     divan::main();

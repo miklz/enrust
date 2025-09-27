@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod minimax_tests {
-    use enrust::game_state::GameState;
     use enrust::game_state::ChessBoard;
     use enrust::game_state::Color;
+    use enrust::game_state::GameState;
     use enrust::game_state::board::search::*;
 
     fn setup_test_game(fen: &str) -> ChessBoard {
@@ -20,11 +20,17 @@ mod minimax_tests {
         // At depth 1, should find one of the 20 possible moves
         let moves = game.generate_moves(Color::White);
         let best_move = best_move.unwrap();
-        assert!(moves.iter().any(|mv| *mv == best_move),
-                "Best move should be one of the legal moves");
+        assert!(
+            moves.iter().any(|mv| *mv == best_move),
+            "Best move should be one of the legal moves"
+        );
 
         // Score should be reasonable (not extreme values)
-        assert!(score.abs() < 1000, "Score should be reasonable, got: {}", score);
+        assert!(
+            score.abs() < 1000,
+            "Score should be reasonable, got: {}",
+            score
+        );
     }
 
     #[test]
@@ -35,7 +41,11 @@ mod minimax_tests {
         let (score, best_move) = pure_minimax_search(&mut game, 3, Color::White);
 
         // Should find checkmate
-        assert!(score > 10000, "Should find winning position, score: {}", score);
+        assert!(
+            score > 10000,
+            "Should find winning position, score: {}",
+            score
+        );
 
         // The move should be Ra8# or similar checkmate
         let best_move = best_move.unwrap();
@@ -52,7 +62,11 @@ mod minimax_tests {
         let (score, best_move) = pure_minimax_search(&mut game, 3, Color::Black);
 
         // Should find checkmate (negative score from black's perspective)
-        assert!(score < -10000, "Should find winning position for black, score: {}", score);
+        assert!(
+            score < -10000,
+            "Should find winning position for black, score: {}",
+            score
+        );
 
         let best_move = best_move.unwrap();
         // The move should be checkmate
@@ -82,11 +96,19 @@ mod minimax_tests {
         // Should prefer capturing the queen (d4xd5)
         let expected_move = game.from_uci("d4d5").expect("Should create capture move");
         let best_move = best_move.unwrap();
-        assert_eq!(best_move, expected_move,
-                  "Should capture queen, got: {}", best_move.to_uci(&game));
+        assert_eq!(
+            best_move,
+            expected_move,
+            "Should capture queen, got: {}",
+            best_move.to_uci(&game)
+        );
 
         // Score should reflect material advantage
-        assert!(score > 800, "Should have significant advantage after capture, score: {}", score);
+        assert!(
+            score > 800,
+            "Should have significant advantage after capture, score: {}",
+            score
+        );
     }
 
     #[test]
@@ -97,13 +119,23 @@ mod minimax_tests {
         let (score, best_move) = pure_minimax_search(&mut game, 2, Color::White);
 
         // Should promote to queen (b7b8q)
-        let promotion_move = game.from_uci("d7d8q").expect("Should create promotion move");
+        let promotion_move = game
+            .from_uci("d7d8q")
+            .expect("Should create promotion move");
         let best_move = best_move.unwrap();
-        assert_eq!(best_move, promotion_move,
-                  "Should promote pawn to queen, got: {}", best_move.to_uci(&game));
+        assert_eq!(
+            best_move,
+            promotion_move,
+            "Should promote pawn to queen, got: {}",
+            best_move.to_uci(&game)
+        );
 
         // Score should reflect queen advantage
-        assert!(score >= 900, "Should have queen advantage, score: {}", score);
+        assert!(
+            score >= 900,
+            "Should have queen advantage, score: {}",
+            score
+        );
     }
 
     #[test]
@@ -116,8 +148,11 @@ mod minimax_tests {
         // Should avoid the checkmate by moving king or blocking
         let best_move = best_move.unwrap();
         game.make_move(&best_move);
-        assert!(!game.is_checkmate(Color::White),
-               "Move should avoid immediate checkmate: {}", best_move.to_uci(&game));
+        assert!(
+            !game.is_checkmate(Color::White),
+            "Move should avoid immediate checkmate: {}",
+            best_move.to_uci(&game)
+        );
         game.unmake_move(&best_move);
 
         // Score should not be extremely negative
@@ -135,9 +170,21 @@ mod minimax_tests {
 
         // Deeper search should find at least as good moves
         // Note: Sometimes different depths can find different equally good moves
-        println!("Depth 1: {} (score: {})", move_1.unwrap().to_uci(&game), score_depth_1);
-        println!("Depth 2: {} (score: {})", move_2.unwrap().to_uci(&game), score_depth_2);
-        println!("Depth 3: {} (score: {})", move_3.unwrap().to_uci(&game), score_depth_3);
+        println!(
+            "Depth 1: {} (score: {})",
+            move_1.unwrap().to_uci(&game),
+            score_depth_1
+        );
+        println!(
+            "Depth 2: {} (score: {})",
+            move_2.unwrap().to_uci(&game),
+            score_depth_2
+        );
+        println!(
+            "Depth 3: {} (score: {})",
+            move_3.unwrap().to_uci(&game),
+            score_depth_3
+        );
 
         // Scores should be reasonable
         assert!(score_depth_1.abs() < 1000);
@@ -156,9 +203,12 @@ mod minimax_tests {
         let (score_black, _) = pure_minimax_search(&mut game, 2, Color::Black);
 
         // Scores should be approximately opposite (white positive, black negative)
-        assert!((score_white + score_black).abs() < 50,
-               "Symmetric position should have opposite scores: white={}, black={}",
-               score_white, score_black);
+        assert!(
+            (score_white + score_black).abs() < 50,
+            "Symmetric position should have opposite scores: white={}, black={}",
+            score_white,
+            score_black
+        );
     }
 
     #[test]
@@ -169,8 +219,11 @@ mod minimax_tests {
         let (score, _) = pure_minimax_search(&mut game, 1, Color::White);
 
         // Should show significant advantage (around +900 for queen)
-        assert!(score > 800 && score < 1000,
-               "Should show queen advantage, got: {}", score);
+        assert!(
+            score > 800 && score < 1000,
+            "Should show queen advantage, got: {}",
+            score
+        );
     }
 
     #[test]
@@ -183,11 +236,19 @@ mod minimax_tests {
             // Move should be legal
             let legal_moves = game.generate_moves(Color::White);
             let best_move = best_move.unwrap();
-            assert!(legal_moves.contains(&best_move),
-                   "Depth {}: Returned illegal move: {}", depth, best_move.to_uci(&game));
+            assert!(
+                legal_moves.contains(&best_move),
+                "Depth {}: Returned illegal move: {}",
+                depth,
+                best_move.to_uci(&game)
+            );
 
             // Score should be 0 (equal position)
-            assert_eq!(score, 0, "Depth {}: Kings only should be equal, got: {}", depth, score);
+            assert_eq!(
+                score, 0,
+                "Depth {}: Kings only should be equal, got: {}",
+                depth, score
+            );
         }
     }
 
@@ -198,7 +259,10 @@ mod minimax_tests {
 
         let (score, best_move) = pure_minimax_search(&mut game, 3, Color::Black);
 
-        assert!(score > 10000, "Black is being mated, score should be very high for white");
+        assert!(
+            score > 10000,
+            "Black is being mated, score should be very high for white"
+        );
         assert!(best_move.is_some(), "There's two forced moves for black");
     }
 }
