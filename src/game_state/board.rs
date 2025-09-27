@@ -324,6 +324,92 @@ impl ChessBoard {
         squares
     }
 
+    /// Get direction that a square can reach another in straight lines.
+    ///
+    /// Only works for straight lines (ranks, files)
+    ///
+    /// # Arguments
+    ///
+    /// * `from` - Starting square
+    /// * `to` - Ending square
+    ///
+    /// # Returns
+    ///
+    /// Direction that should be taked to reach end square or 0 if there's not
+    /// a valid straight line between `from` and `to` squares
+    fn get_rank_or_file_direction(&self, from: i16, to: i16) -> i16 {
+        // Sanity check, the squares can't be the same
+        if from == to {
+            return 0;
+        }
+
+        // Check if the squares are in the same file or in the same rank.
+        let same_rank = self.are_on_the_same_rank(from, to);
+        let same_file = self.are_on_the_same_file(from, to);
+        if !same_file && !same_rank {
+            // If they aren't in the same rank or in the same file,
+            // the rook can't move there.
+            return 0;
+        }
+
+        // We now know that the squares are in the same file or in the
+        // same rank, we need to get in which direction the rook should
+        // move.
+        let distance = to - from;
+        let direction = if same_rank {
+            if distance > 0 { 1 } else { -1 }
+        } else {
+            if distance > 0 {
+                self.board_width
+            } else {
+                -self.board_width
+            }
+        };
+
+        direction
+    }
+
+    /// Get the direction that if a square can reach another in diagonal lines.
+    ///
+    /// Only works for diagonal lines
+    ///
+    /// # Arguments
+    ///
+    /// * `from` - Starting square
+    /// * `to` - Ending square
+    ///
+    /// # Returns
+    ///
+    /// Direction it should be taked to reach end square or 0 if there's not
+    /// a valid diagonal line between `from` and `to` squares
+    fn get_diagonal_direction(&self, from: i16, to: i16) -> i16 {
+        // Sanity check, the squares can't be the same
+        if from == to {
+            return 0;
+        }
+
+        // Check if the squares are in the same diagonal.
+        let same_diagonal = self.are_on_the_same_diagonal(from, to);
+        if !same_diagonal {
+            // If they aren't in the same diagonal the bishop can't move there
+            return 0;
+        }
+
+        // The squares are in the same diagonal, now we need to get in which
+        // direction the bishop should move.
+        let row1 = self.square_rank(from);
+        let row2 = self.square_rank(to);
+        let row_dir: i16 = if row2 > row1 { 1 } else { -1 };
+
+        let col1 = self.square_file(from);
+        let col2 = self.square_file(to);
+        let col_dir: i16 = if col2 > col1 { 1 } else { -1 };
+
+        let direction = row_dir * self.board_width + col_dir;
+
+        direction
+    }
+
     /// Gets the current en passant target square.
     ///
     /// # Returns
@@ -494,6 +580,170 @@ impl ChessBoard {
                 self.castling_rights.black_queenside = false;
             }
         }
+    }
+
+    /// Checks if kingside castling is legal for the given color.
+    ///
+    /// Verifies all castling conditions: rights, piece positions, empty squares, and safety.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the chess board
+    /// * `color` - Color attempting to castle
+    /// * `king_square` - Expected king starting square
+    /// * `rook_square` - Expected rook starting square
+    ///
+    /// # Returns
+    ///
+    /// `true` if kingside castling is legal
+    fn can_castle_kingside(
+        &self,
+        color: Color,
+        king_square: i16,
+        rook_square: i16,
+    ) -> bool {
+        // 0. Check if castling privileges are valid
+        if (color == Color::White) && (self.castling_rights.white_kingside != true) {
+            return false;
+        }
+
+        if (color == Color::Black) && (self.castling_rights.black_kingside != true) {
+            return false;
+        }
+
+        // 1. Check if king and rook are in starting positions
+        if self.get_piece_on_square(king_square)
+            != if color == Color::White {
+                Piece::WhiteKing
+            } else {
+                Piece::BlackKing
+            }
+        {
+            return false;
+        }
+
+        if self.get_piece_on_square(rook_square)
+            != if color == Color::White {
+                Piece::WhiteRook
+            } else {
+                Piece::BlackRook
+            }
+        {
+            return false;
+        }
+
+        // 2. Check if squares between king and rook are empty
+        let squares_between = match color {
+            Color::White => vec![26, 27], // f1, g1
+            Color::Black => vec![96, 97], // f8, g8
+        };
+
+        for square in squares_between {
+            if self.get_piece_on_square(square) != Piece::EmptySquare {
+                return false;
+            }
+        }
+
+        // 3. Check if king is not in check and doesn't move through check
+        let check_squares = match color {
+            Color::White => vec![25, 26, 27], // e1, f1, g1
+            Color::Black => vec![95, 96, 97], // e8, f8, g8
+        };
+
+        for square in check_squares {
+            let opposite_color = if color == Color::White {
+                Color::Black
+            } else {
+                Color::White
+            };
+            if self.piece_list.is_square_attacked(&self, square, opposite_color) {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    /// Checks if queenside castling is legal for the given color.
+    ///
+    /// Verifies all castling conditions: rights, piece positions, empty squares, and safety.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the chess board
+    /// * `color` - Color attempting to castle
+    /// * `king_square` - Expected king starting square
+    /// * `rook_square` - Expected rook starting square
+    ///
+    /// # Returns
+    ///
+    /// `true` if queenside castling is legal
+    fn can_castle_queenside(
+        &self,
+        color: Color,
+        king_square: i16,
+        rook_square: i16,
+    ) -> bool {
+        // 0. Check if castling privileges are valid
+        if (color == Color::White) && (self.castling_rights.white_queenside != true) {
+            return false;
+        }
+
+        if (color == Color::Black) && (self.castling_rights.black_queenside != true) {
+            return false;
+        }
+
+        // 1. Check if king and rook are in starting positions
+        if self.get_piece_on_square(king_square)
+            != if color == Color::White {
+                Piece::WhiteKing
+            } else {
+                Piece::BlackKing
+            }
+        {
+            return false;
+        }
+
+        if self.get_piece_on_square(rook_square)
+            != if color == Color::White {
+                Piece::WhiteRook
+            } else {
+                Piece::BlackRook
+            }
+        {
+            return false;
+        }
+
+        // 2. Check if squares between king and rook are empty
+        let squares_between = match color {
+            Color::White => vec![22, 23, 24], // b1, c1, d1
+            Color::Black => vec![92, 93, 94], // b8, c8, d8
+        };
+
+        for square in squares_between {
+            if self.get_piece_on_square(square) != Piece::EmptySquare {
+                return false;
+            }
+        }
+
+        // 3. Check if king is not in check and doesn't move through check
+        let check_squares = match color {
+            Color::White => vec![25, 24, 23], // e1, d1, c1
+            Color::Black => vec![95, 94, 93], // e8, d8, c8
+        };
+
+        for square in check_squares {
+            let opposite_color = if color == Color::White {
+                Color::Black
+            } else {
+                Color::White
+            };
+            if self.piece_list.is_square_attacked(&self, square, opposite_color) {
+                return false;
+            }
+        }
+
+        true
     }
 
     /// Sets up the board from an 8x8 array of pieces.
@@ -822,5 +1072,126 @@ mod castling_tests {
         assert!(!game.board.castling_rights.white_queenside);
         assert!(!game.board.castling_rights.black_kingside);
         assert!(!game.board.castling_rights.black_queenside);
+    }
+}
+
+#[cfg(test)]
+mod can_castle_queenside_tests {
+    use super::*;
+    use crate::game_state::GameState;
+
+    #[test]
+    fn test_can_castle_queenside_normal() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+
+        // White should be able to castle queenside
+        assert!(game.board.can_castle_queenside(
+            Color::White,
+            game.board.algebraic_to_internal("e1"),
+            game.board.algebraic_to_internal("a1")
+        ));
+
+        // Black should be able to castle queenside
+        assert!(game.board.can_castle_queenside(
+            Color::Black,
+            game.board.algebraic_to_internal("e8"),
+            game.board.algebraic_to_internal("a8")
+        ));
+    }
+
+    #[test]
+    fn test_cannot_castle_queenside_if_king_moved() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+
+        // Simulate king moved by removing castling rights
+        game.board.castling_rights.white_queenside = false;
+
+        assert!(!game.board.can_castle_queenside(
+            Color::White,
+            game.board.algebraic_to_internal("e1"),
+            game.board.algebraic_to_internal("a1")
+        ));
+    }
+
+    #[test]
+    fn test_cannot_castle_queenside_if_rook_moved() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+
+        // Simulate rook moved by removing castling rights
+        game.board.castling_rights.white_queenside = false;
+
+        assert!(!game.board.can_castle_queenside(
+            Color::White,
+            game.board.algebraic_to_internal("e1"),
+            game.board.algebraic_to_internal("a1")
+        ));
+    }
+
+    #[test]
+    fn test_cannot_castle_queenside_if_squares_occupied() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R1B1K2R w KQkq - 0 1");
+
+        // Bishop on c1 blocks queenside castling
+        assert!(!game.board.can_castle_queenside(
+            Color::White,
+            game.board.algebraic_to_internal("e1"),
+            game.board.algebraic_to_internal("a1")
+        ));
+    }
+
+    #[test]
+    fn test_cannot_castle_queenside_through_check() {
+        let mut game = GameState::default();
+        game.set_fen_position("8/8/8/8/8/2n5/8/R3K3 w - - 0 1");
+
+        // Black knight attacks d1, which king moves through
+        assert!(!game.board.can_castle_queenside(
+            Color::White,
+            game.board.algebraic_to_internal("e1"),
+            game.board.algebraic_to_internal("a1")
+        ));
+    }
+
+    #[test]
+    fn test_cannot_castle_queenside_if_in_check() {
+        let mut game = GameState::default();
+        game.set_fen_position("8/8/8/8/7b/8/8/R3K3 w - - 0 1");
+
+        // Black bishop attacks e1 (king is in check)
+        assert!(!game.board.can_castle_queenside(
+            Color::White,
+            game.board.algebraic_to_internal("e1"),
+            game.board.algebraic_to_internal("a1")
+        ));
+    }
+
+    #[test]
+    fn test_cannot_castle_queenside_if_pieces_missing() {
+        let mut game = GameState::default();
+        game.set_fen_position("4k3/pppppppp/8/8/8/8/PPPPPPPP/4K3 w - - 0 1");
+
+        // No rook on a1
+        assert!(!game.board.can_castle_queenside(
+            Color::White,
+            game.board.algebraic_to_internal("e1"),
+            game.board.algebraic_to_internal("a1")
+        ));
+    }
+
+    #[test]
+    fn test_cannot_castle_queenside_wrong_color() {
+        let mut game = GameState::default();
+        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+
+        // Black pieces on white squares shouldn't allow white to castle
+        assert!(!game.board.can_castle_queenside(
+            Color::White,
+            game.board.algebraic_to_internal("e1"), // white king
+            game.board.algebraic_to_internal("a8")  // black rook - WRONG ROOK!
+        ));
     }
 }
