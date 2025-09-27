@@ -72,6 +72,11 @@ cargo doc --open
 ### Project Structure
 
 ```
+benches/
+├── chess_benchmarks.rs     # Profile chess interface functions
+├── perft_benchmarks.rs     # Profile move generation functions
+└── search_benchmarks.rs    # Profile search algorithms
+
 src/
 ├── lib.rs                  # Crate root and public API
 ├── game_state/             # High-level game state management
