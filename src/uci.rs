@@ -103,6 +103,7 @@ fn handle_go_command(game_state: &mut GameState, tokens: &mut SplitWhitespace) {
                         game_state.perft_debug(depth, true);
                     }
                 }
+                return;
             }
 
             _ => {}
