@@ -1,26 +1,51 @@
+//! Game state management and UCI protocol support.
+//!
+//! This module provides the high-level game state management, including
+//! position setup, move execution, search configuration, and UCI protocol
+//! integration for chess engine communication.
+
 pub mod board;
 pub use board::CastlingRights;
 pub use board::ChessBoard;
 pub use board::moves::Move;
 pub use board::piece::{Color, Piece};
 
+/// Configuration for search parameters and time control.
+///
+/// Used to configure the engine's search behavior according to UCI protocol
+/// parameters. Supports time controls, depth limits, and various search modes.
 #[derive(Clone)]
 pub struct SearchConfiguration {
-    pub wtime: Option<u64>,     // White time in milliseconds
-    pub btime: Option<u64>,     // Black time in milliseconds
-    pub winc: Option<u64>,      // White increment per move
-    pub binc: Option<u64>,      // Black increment per move
-    pub movestogo: Option<u64>, // Moves until next time control
-    pub movetime: Option<u64>,  // Time limit for this move
-    pub depth: Option<u64>,     // Search depth limit
-    pub nodes: Option<u64>,     // Node count limit
-    pub infinite: bool,         // Search until "stop" command
+    /// White time remaining in milliseconds
+    pub wtime: Option<u64>,
+    /// Black time remaining in milliseconds
+    pub btime: Option<u64>,
+    /// White time increment per move in milliseconds
+    pub winc: Option<u64>,
+    /// Black time increment per move in milliseconds
+    pub binc: Option<u64>,
+    /// Moves remaining until next time control
+    pub movestogo: Option<u64>,
+    /// Time limit for this move in milliseconds
+    pub movetime: Option<u64>,
+    /// Maximum search depth
+    pub depth: Option<u64>,
+    /// Maximum number of nodes to search
+    pub nodes: Option<u64>,
+    /// Search indefinitely until "stop" command
+    pub infinite: bool,
+    /// Restrict search to specific moves
     pub searchmoves: Option<Vec<Move>>,
+    /// Enable pondering (thinking during opponent's time)
     pub ponder: bool,
+    /// Search for a mate in specified number of moves
     pub mate: Option<u32>,
 }
 
 impl SearchConfiguration {
+    /// Creates a new search configuration with default values.
+    ///
+    /// All time controls and limits are initially unset.
     pub fn new() -> Self {
         SearchConfiguration {
             wtime: None,
@@ -38,7 +63,21 @@ impl SearchConfiguration {
         }
     }
 
-    // Helper to calculate time allocation for current side to move
+    /// Calculates the recommended time allocation for the current move.
+    ///
+    /// Implements basic time management strategy:
+    /// - Uses `movetime` if specified directly
+    /// - Otherwise divides remaining time by moves to go
+    /// - Adds increment if available
+    /// - Returns `None` for infinite search
+    ///
+    /// # Arguments
+    ///
+    /// * `side_to_move` - Color to calculate time for
+    ///
+    /// # Returns
+    ///
+    /// Recommended time in milliseconds, or `None` for infinite search
     pub fn time_for_move(&self, side_to_move: Color) -> Option<u64> {
         if self.infinite {
             return None;
@@ -61,24 +100,50 @@ impl SearchConfiguration {
     }
 }
 
+/// Main game state container managing the chess position and search configuration.
+///
+/// Handles position setup, move execution, move generation, and search operations.
+/// Integrates with the UCI protocol for engine communication.
 pub struct GameState {
+    /// Total ply moves made in the game
     ply_moves: u64,
+    /// Current side to move
     side_to_move: Color,
+    /// Search configuration and time control settings
     search_control: Option<SearchConfiguration>,
-
+    /// The chess board with current position
     board: ChessBoard,
 }
 
 impl GameState {
+    /// Sets up the standard chess starting position.
+    ///
+    /// Equivalent to FEN: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     pub fn start_position(&mut self) {
         let fen_start_pos = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         self.set_fen_position(fen_start_pos);
     }
 
+    /// Sets the time control and search parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `sc` - Search configuration to apply
     pub fn set_time_control(&mut self, sc: &SearchConfiguration) {
         self.search_control = Some(sc.clone());
     }
 
+    /// Sets up the board position from a FEN string.
+    ///
+    /// FEN format: `<position> <side> <castling> <en passant> <halfmove> <fullmove>`
+    ///
+    /// # Arguments
+    ///
+    /// * `fen_str` - FEN string representing the position
+    ///
+    /// # Returns
+    ///
+    /// `true` if FEN was parsed successfully, `false` otherwise
     pub fn set_fen_position(&mut self, fen_str: &str) -> bool {
         // FEN: <position> <side to move> <castling rights> <en passant square> <half move number> <full move number>
         let mut fen = fen_str.split_whitespace();
@@ -223,10 +288,24 @@ impl GameState {
         true
     }
 
+    /// Creates a move object from algebraic notation.
+    ///
+    /// # Arguments
+    ///
+    /// * `algebraic_notation` - Move in UCI format (e.g., "e2e4")
+    ///
+    /// # Returns
+    ///
+    /// `Some(Move)` if the notation is valid, `None` otherwise
     pub fn create_move(&self, algebraic_notation: &str) -> Option<Move> {
         self.board.from_uci(algebraic_notation)
     }
 
+    /// Executes a move on the board.
+    ///
+    /// # Arguments
+    ///
+    /// * `algebraic_notation` - Move in UCI format to execute
     pub fn make_move(&mut self, algebraic_notation: &str) {
         match self.create_move(algebraic_notation) {
             Some(mv) => {
@@ -237,6 +316,11 @@ impl GameState {
         }
     }
 
+    /// Reverts a move on the board.
+    ///
+    /// # Arguments
+    ///
+    /// * `algebraic_notation` - Move in UCI format to undo
     pub fn unmake_move(&mut self, algebraic_notation: &str) {
         match self.create_move(algebraic_notation) {
             Some(mv) => {
@@ -247,6 +331,11 @@ impl GameState {
         }
     }
 
+    /// Generates all legal moves for the current position.
+    ///
+    /// # Returns
+    ///
+    /// Vector of moves in UCI string format
     pub fn generate_moves(&mut self) -> Vec<String> {
         let moves = self.board.generate_moves(self.side_to_move);
 
@@ -254,6 +343,13 @@ impl GameState {
         move_ucis
     }
 
+    /// Performs a search to find the best move for the current position.
+    ///
+    /// Uses the configured time control and search parameters.
+    ///
+    /// # Returns
+    ///
+    /// Best move in UCI format, or "0000" if no move found
     pub fn search(&mut self) -> String {
         // The pieces positions was already defined on the board and
         // the time control was set with the time requirements
@@ -266,6 +362,18 @@ impl GameState {
         }
     }
 
+    /// Performs a perft (performance test) for debugging move generation.
+    ///
+    /// Counts the number of leaf nodes at a given depth for testing move generation correctness.
+    ///
+    /// # Arguments
+    ///
+    /// * `depth` - Depth to search (0 returns immediate count)
+    /// * `print` - Whether to print move counts for each branch
+    ///
+    /// # Returns
+    ///
+    /// Total number of leaf nodes at the specified depth
     pub fn perft_debug(&mut self, depth: u64, print: bool) -> u64 {
         if depth == 0 {
             return 1;
@@ -307,16 +415,23 @@ impl GameState {
         total_nodes
     }
 
+    /// Prints the current board state to stdout.
     pub fn print_board(&self) {
         self.board.print_board();
     }
 
+    /// Gets a reference to the underlying chess board.
+    ///
+    /// # Returns
+    ///
+    /// Reference to the ChessBoard instance
     pub fn get_chess_board(&self) -> &ChessBoard {
         &self.board
     }
 }
 
 impl Default for GameState {
+    /// Creates a default game state with standard starting position.
     fn default() -> Self {
         GameState {
             ply_moves: 0,

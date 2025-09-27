@@ -1,7 +1,27 @@
+//! Chess search algorithms and evaluation functions.
+//!
+//! This module implements various chess search algorithms including minimax,
+//! negamax, alpha-beta pruning, and quiescence search for stable positions.
+
 use crate::game_state::ChessBoard;
 use crate::game_state::Color;
 use crate::game_state::Move;
 
+/// Pure minimax algorithm without optimization techniques.
+///
+/// Recursively evaluates all possible moves to a given depth using the
+/// minimax algorithm. White tries to maximize the score while Black tries
+/// to minimize it.
+///
+/// # Arguments
+///
+/// * `game` - Mutable reference to the chess board
+/// * `depth` - Search depth (number of plies to look ahead)
+/// * `side_to_move` - Color of the player to move
+///
+/// # Returns
+///
+/// Evaluation score from the perspective of the side to move
 fn pure_minimax(game: &mut ChessBoard, depth: u64, side_to_move: Color) -> i64 {
     if depth == 0 {
         return game.evaluate();
@@ -10,7 +30,7 @@ fn pure_minimax(game: &mut ChessBoard, depth: u64, side_to_move: Color) -> i64 {
     let moves = game.generate_moves(side_to_move);
 
     match side_to_move {
-        // Maximizer
+        // Maximizer (White)
         Color::White => {
             let mut max_eval = i64::MIN;
 
@@ -24,7 +44,7 @@ fn pure_minimax(game: &mut ChessBoard, depth: u64, side_to_move: Color) -> i64 {
 
             max_eval
         }
-        // Minimizer
+        // Minimizer (Black)
         Color::Black => {
             let mut min_eval = i64::MAX;
 
@@ -41,6 +61,17 @@ fn pure_minimax(game: &mut ChessBoard, depth: u64, side_to_move: Color) -> i64 {
     }
 }
 
+/// Performs a complete minimax search and returns the best move.
+///
+/// # Arguments
+///
+/// * `game` - Mutable reference to the chess board
+/// * `depth` - Search depth (number of plies to look ahead)
+/// * `side_to_move` - Color of the player to move
+///
+/// # Returns
+///
+/// Tuple containing the best evaluation score and the best move found
 pub fn pure_minimax_search(
     game: &mut ChessBoard,
     depth: u64,
@@ -72,10 +103,24 @@ pub fn pure_minimax_search(
         }
     }
 
-    // Return best move found, or none
+    // Return best move found, or none if no moves available
     (best_score, best_move)
 }
 
+/// Negamax implementation of the minimax algorithm.
+///
+/// Uses a single recursive function for both players by negating scores
+/// at each recursion level. More elegant than separate min/max functions.
+///
+/// # Arguments
+///
+/// * `game` - Mutable reference to the chess board
+/// * `depth` - Search depth (negative for negamax convention)
+/// * `side_to_move` - Color of the player to move
+///
+/// # Returns
+///
+/// Evaluation score from the perspective of the side to move
 fn pure_negamax(game: &mut ChessBoard, depth: i64, side_to_move: Color) -> i64 {
     if depth == 0 {
         let perspective = if side_to_move == Color::White { 1 } else { -1 };
@@ -83,7 +128,7 @@ fn pure_negamax(game: &mut ChessBoard, depth: i64, side_to_move: Color) -> i64 {
     }
 
     let moves = game.generate_moves(side_to_move);
-    let mut score = i64::MIN + 1; // +1 to not overflow when negated
+    let mut score = i64::MIN + 1; // +1 to avoid overflow when negated
 
     for mv in &moves {
         game.make_move(&mv);
@@ -94,6 +139,17 @@ fn pure_negamax(game: &mut ChessBoard, depth: i64, side_to_move: Color) -> i64 {
     score
 }
 
+/// Performs a complete negamax search and returns the best move.
+///
+/// # Arguments
+///
+/// * `game` - Mutable reference to the chess board
+/// * `depth` - Search depth (number of plies to look ahead)
+/// * `side_to_move` - Color of the player to move
+///
+/// # Returns
+///
+/// Tuple containing the best evaluation score and the best move found
 pub fn pure_negamax_search(
     game: &mut ChessBoard,
     depth: i64,
@@ -117,10 +173,26 @@ pub fn pure_negamax_search(
     let perspective = if side_to_move == Color::White { 1 } else { -1 };
     best_score = best_score * perspective;
 
-    // Return best move found, or none
+    // Return best move found, or none if no moves available
     (best_score, best_move)
 }
 
+/// Minimax algorithm with alpha-beta pruning for improved performance.
+///
+/// Alpha-beta pruning eliminates branches that cannot influence the final
+/// decision, significantly reducing the number of positions evaluated.
+///
+/// # Arguments
+///
+/// * `game` - Mutable reference to the chess board
+/// * `depth` - Search depth (number of plies to look ahead)
+/// * `alpha` - Alpha value for pruning (best value maximizer can guarantee)
+/// * `beta` - Beta value for pruning (best value minimizer can guarantee)
+/// * `side_to_move` - Color of the player to move
+///
+/// # Returns
+///
+/// Evaluation score from the perspective of the side to move
 fn minimax_alpha_beta(
     game: &mut ChessBoard,
     depth: u64,
@@ -128,7 +200,7 @@ fn minimax_alpha_beta(
     mut beta: i64,
     side_to_move: Color,
 ) -> i64 {
-    // Terminal node check
+    // Terminal node check - reached maximum depth
     if depth == 0 {
         return game.evaluate();
     }
@@ -146,8 +218,9 @@ fn minimax_alpha_beta(
             max_eval = max_eval.max(eval);
             alpha = alpha.max(eval);
 
+            // Beta cutoff - Black won't allow this line
             if beta <= alpha {
-                break; // Beta cutoff
+                break;
             }
         }
 
@@ -163,8 +236,9 @@ fn minimax_alpha_beta(
             min_eval = min_eval.min(eval);
             beta = beta.min(eval);
 
+            // Alpha cutoff - White won't allow this line
             if beta <= alpha {
-                break; // Alpha cutoff
+                break;
             }
         }
 
@@ -172,6 +246,19 @@ fn minimax_alpha_beta(
     }
 }
 
+/// Performs a complete alpha-beta search and returns the best move.
+///
+/// This is the primary search function used by the chess engine.
+///
+/// # Arguments
+///
+/// * `game` - Mutable reference to the chess board
+/// * `depth` - Search depth (number of plies to look ahead)
+/// * `side_to_move` - Color of the player to move
+///
+/// # Returns
+///
+/// Tuple containing the best evaluation score and the best move found
 pub fn minimax_alpha_beta_search(
     game: &mut ChessBoard,
     depth: u64,
@@ -213,6 +300,22 @@ pub fn minimax_alpha_beta_search(
     (best_score, best_move)
 }
 
+/// Quiescence search to stabilize evaluations in tactical positions.
+///
+/// Extends search beyond the normal depth limit to only consider captures
+/// and other forcing moves, preventing horizon effect problems where
+/// tactical sequences extend beyond the search depth.
+///
+/// # Arguments
+///
+/// * `chess_board` - Mutable reference to the chess board
+/// * `alpha` - Alpha value for pruning
+/// * `beta` - Beta value for pruning
+/// * `side_to_move` - Color of the player to move
+///
+/// # Returns
+///
+/// Stabilized evaluation score after considering captures
 pub fn quiescence(
     chess_board: &mut ChessBoard,
     mut alpha: i64,
@@ -222,16 +325,17 @@ pub fn quiescence(
     // Evaluate the current (possibly noisy) position
     let stand_pat = chess_board.evaluate();
 
-    // Beta cutoff
+    // Beta cutoff - position is already good enough for the opponent
     if stand_pat >= beta {
         return beta;
     }
 
+    // Update alpha if current position is better than known alpha
     if stand_pat > alpha {
         alpha = stand_pat;
     }
 
-    // Only consider capture moves
+    // Only consider capture moves (quiets are skipped in quiescence search)
     let captures = chess_board
         .generate_moves(side_to_move)
         .into_iter()

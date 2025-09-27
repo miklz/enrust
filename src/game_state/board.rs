@@ -1,3 +1,10 @@
+//! Chess board representation and game state management.
+//!
+//! This module provides the core data structures and logic for representing
+//! a chess board, managing piece positions, handling moves, and evaluating
+//! game states. The board uses a 12x10 mailbox representation with sentinel
+//! squares for efficient move generation and validation.
+
 pub mod moves;
 pub mod piece;
 pub mod piece_list;
@@ -7,36 +14,77 @@ use moves::Move;
 use piece::{Color, Piece, PieceType};
 use piece_list::PieceList;
 
+/// Represents the castling rights for both players.
+///
+/// Tracks which castling moves are still available for white and black,
+/// both kingside and queenside. Castling rights are updated automatically
+/// when pieces move or are captured.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct CastlingRights {
+    /// Whether white can still castle queenside
     pub white_queenside: bool,
+    /// Whether white can still castle kingside
     pub white_kingside: bool,
+    /// Whether black can still castle queenside
     pub black_queenside: bool,
+    /// Whether black can still castle kingside
     pub black_kingside: bool,
 }
 
+/// Contains information needed to execute a castling move.
+///
+/// Stores the rook's movement details for castling operations.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CastlingInfo {
+    /// The rook's starting square
     pub rook_from: i16,
+    /// The rook's destination square after castling
     pub rook_to: i16,
+    /// The rook piece being moved
     pub rook_piece: Piece,
 }
 
+/// Main chess board representation using a mailbox system.
+///
+/// The board uses a 12x10 array with sentinel squares around the edges
+/// to simplify boundary checking during move generation. The actual chess
+/// board occupies the central 8x8 area.
 #[derive(Clone)]
 pub struct ChessBoard {
+    /// Width of the internal board representation (including sentinels)
     board_width: i16,
+    /// Height of the internal board representation (including sentinels)
     board_height: i16,
+    /// Array of pieces representing the board state with sentinel borders
     board_squares: [Piece; 12 * 10],
 
-    // Which square is el passant valid
+    /// The en passant target square, if applicable
     en_passant_target: Option<i16>,
 
+    /// Current castling rights for both players
     castling_rights: CastlingRights,
 
+    /// Piece lists for efficient piece tracking and move generation
     piece_list: PieceList,
 }
 
 impl ChessBoard {
+    /// Calculates the material score for the current board position.
+    ///
+    /// Uses standard chess piece values:
+    /// - King: 20000
+    /// - Queen: 900
+    /// - Rook: 500
+    /// - Bishop/Knight: 300
+    /// - Pawn: 100
+    ///
+    /// # Arguments
+    ///
+    /// * `piece_list` - Reference to the piece list to evaluate
+    ///
+    /// # Returns
+    ///
+    /// Material score from white's perspective (positive if white has advantage)
     fn material_score(&self, piece_list: &PieceList) -> i64 {
         // count pieces
         let w_king = piece_list
@@ -84,27 +132,77 @@ impl ChessBoard {
         material
     }
 
+    /// Evaluates the current board position using material counting.
+    ///
+    /// # Returns
+    ///
+    /// Score from white's perspective (positive if white is winning)
     pub fn evaluate(&self) -> i64 {
         self.material_score(&self.piece_list)
     }
 
+    /// Checks if the given color is in checkmate.
+    ///
+    /// # Arguments
+    ///
+    /// * `color` - Color to check for checkmate
+    ///
+    /// # Returns
+    ///
+    /// `true` if the king is in check and no legal moves exist
     pub fn is_checkmate(&mut self, color: Color) -> bool {
         let moves = self.generate_moves(color);
         moves.is_empty() && self.is_in_check(color)
     }
 
+    /// Checks if the given color's king is in check.
+    ///
+    /// # Arguments
+    ///
+    /// * `color` - Color to check for check
+    ///
+    /// # Returns
+    ///
+    /// `true` if the king is under attack
     pub fn is_in_check(&self, color: Color) -> bool {
         self.piece_list.is_king_in_check(&self, color).len() > 0
     }
 
+    /// Parses a move from UCI algebraic notation.
+    ///
+    /// # Arguments
+    ///
+    /// * `uci_notation` - Move in UCI format (e.g., "e2e4", "g1f3")
+    ///
+    /// # Returns
+    ///
+    /// `Some(Move)` if the notation is valid, `None` otherwise
     pub fn from_uci(&self, uci_notation: &str) -> Option<Move> {
         Move::parse_algebraic_move(&self, uci_notation)
     }
 
+    /// Converts a move to UCI algebraic notation.
+    ///
+    /// # Arguments
+    ///
+    /// * `mv` - The move to convert
+    ///
+    /// # Returns
+    ///
+    /// UCI string representation of the move
     pub fn move_to_uci(&self, mv: &Move) -> String {
         mv.to_uci(&self)
     }
 
+    /// Converts algebraic notation to internal board coordinates.
+    ///
+    /// # Arguments
+    ///
+    /// * `algebraic_notation` - Square in algebraic notation (e.g., "e4")
+    ///
+    /// # Returns
+    ///
+    /// Internal board index, or -1 if invalid
     fn algebraic_to_internal(&self, algebraic_notation: &str) -> i16 {
         if let Some(square) = Move::notation_to_square(algebraic_notation) {
             return self.map_inner_to_outer_board(square);
@@ -112,46 +210,69 @@ impl ChessBoard {
         -1
     }
 
+    /// Gets the piece on a given square.
+    ///
+    /// # Arguments
+    ///
+    /// * `square` - Internal board coordinate
+    ///
+    /// # Returns
+    ///
+    /// Piece at the specified square
     fn get_piece_on_square(&self, square: i16) -> Piece {
         self.board_squares[square as usize]
     }
 
+    /// Sets a piece on a given square.
+    ///
+    /// # Arguments
+    ///
+    /// * `piece` - Piece to place
+    /// * `square` - Internal board coordinate
     fn set_piece_on_square(&mut self, piece: Piece, square: i16) {
         self.board_squares[square as usize] = piece;
     }
 
+    /// Checks if two squares are on the same rank (row).
+    ///
+    /// # Arguments
+    ///
+    /// * `square1` - First square to compare
+    /// * `square2` - Second square to compare
+    ///
+    /// # Returns
+    ///
+    /// `true` if both squares are on the same rank
     fn are_on_the_same_rank(&self, square1: i16, square2: i16) -> bool {
         // Two squares are on the same rank (row) if their indices divided by board_width are equal.
-        // This works because each complete row spans board_width elements.
-        //
-        // Example (with board_width = 10, including sentinels):
-        //
-        //  Index layout for a 10x10 board (only a portion shown):
-        //      20 21 22 23 24 25 26 27 28 29  ← rank 2
-        //      30 31 32 33 34 35 36 37 38 39  ← rank 3
-        //
-        // To check if two squares are on the same rank:
-        //   square1 / board_width == square2 / board_width
-        //   → 32 / 10 == 35 / 10 → 3 == 3 → same rank
         square1 / self.board_width == square2 / self.board_width
     }
 
+    /// Checks if two squares are on the same file (column).
+    ///
+    /// # Arguments
+    ///
+    /// * `square1` - First square to compare
+    /// * `square2` - Second square to compare
+    ///
+    /// # Returns
+    ///
+    /// `true` if both squares are on the same file
     fn are_on_the_same_file(&self, square1: i16, square2: i16) -> bool {
         // Two squares are on the same file (column) if their indices modulo board_width are equal.
-        // This is because squares in the same vertical column have the same remainder when divided by board_width.
-
-        // Example (with board_width = 10, including sentinels):
-        //
-        //  Index layout for a 10x10 board (only a portion shown):
-        //      20 21 22 23 24 25 26 27 28 29  ← rank 2
-        //      30 31 32 33 34 35 36 37 38 39  ← rank 3
-        //
-        // To check if two squares are on the same file:
-        //   square1 % board_width == square2 % board_width
-        //   → 23 % 10 == 33 % 10 → 3 == 3 → same file
         square1 % self.board_width == square2 % self.board_width
     }
 
+    /// Checks if two squares are on the same diagonal.
+    ///
+    /// # Arguments
+    ///
+    /// * `square1` - First square to compare
+    /// * `square2` - Second square to compare
+    ///
+    /// # Returns
+    ///
+    /// `true` if both squares are on the same diagonal
     fn are_on_the_same_diagonal(&self, square1: i16, square2: i16) -> bool {
         let row1 = square1 / self.board_width;
         let col1 = square1 % self.board_width;
@@ -159,19 +280,23 @@ impl ChessBoard {
         let row2 = square2 / self.board_width;
         let col2 = square2 % self.board_width;
 
-        // In a grid (like a chess board), a diagonal moves one step in row and one step in column at the same time.
-        // So, starting from a square (row, col), you reach diagonals by repeatedly moving in these directions:
-        //  top-left: row - 1, col - 1
-        //  top-right: row - 1, col + 1
-        //  bottom-left: row + 1, col - 1
-        //  bottom-right: row + 1, col + 1
-        // In all of these, the number of steps taken in rows and columns is equal. That means:
-        // The absolute difference between the rows must equal the absolute difference between the columns.
-        // So:
+        // Squares are on the same diagonal if the absolute difference in rows
+        // equals the absolute difference in columns
         row1.abs_diff(row2) == col1.abs_diff(col2)
-        // ensures the movement was exactly diagonal.
     }
 
+    /// Gets all squares between two positions (exclusive).
+    ///
+    /// Only works for straight lines (ranks, files) or diagonals.
+    ///
+    /// # Arguments
+    ///
+    /// * `from` - Starting square
+    /// * `to` - Ending square
+    ///
+    /// # Returns
+    ///
+    /// Vector of squares between the two positions
     fn get_squares_between(&self, from: i16, to: i16) -> Vec<i16> {
         let mut squares = Vec::new();
 
@@ -199,22 +324,61 @@ impl ChessBoard {
         squares
     }
 
+    /// Gets the current en passant target square.
+    ///
+    /// # Returns
+    ///
+    /// `Some(square)` if en passant is possible, `None` otherwise
     fn get_en_passant_target(&self) -> Option<i16> {
         self.en_passant_target
     }
 
+    /// Sets the en passant target square.
+    ///
+    /// # Arguments
+    ///
+    /// * `square` - New en passant target square
     fn set_en_passant_target(&mut self, square: Option<i16>) {
         self.en_passant_target = square;
     }
 
+    /// Gets the rank (row) of a square.
+    ///
+    /// # Arguments
+    ///
+    /// * `square` - Internal board coordinate
+    ///
+    /// # Returns
+    ///
+    /// Rank index (0-7) within the chess board
     fn square_rank(&self, square: i16) -> i16 {
         square / self.board_width
     }
 
+    /// Gets the file (column) of a square.
+    ///
+    /// # Arguments
+    ///
+    /// * `square` - Internal board coordinate
+    ///
+    /// # Returns
+    ///
+    /// File index (0-7) within the chess board
     fn square_file(&self, square: i16) -> i16 {
         square % self.board_width
     }
 
+    /// Maps a standard chess square (0-63) to internal board coordinates.
+    ///
+    /// The internal board uses a 12x10 mailbox representation with sentinel squares.
+    ///
+    /// # Arguments
+    ///
+    /// * `square` - Standard chess square index (0-63)
+    ///
+    /// # Returns
+    ///
+    /// Internal board coordinate
     fn map_inner_to_outer_board(&self, square: i16) -> i16 {
         // We have a larger board with sentinel squares around the edges.
         // This function converts a standard 0-63 chess square to its position
@@ -236,8 +400,17 @@ impl ChessBoard {
         internal_square as i16
     }
 
+    /// Maps an internal board coordinate to standard chess square index.
+    ///
+    /// # Arguments
+    ///
+    /// * `square` - Internal board coordinate
+    ///
+    /// # Returns
+    ///
+    /// Standard chess square index (0-63)
     fn map_to_standard_chess_board(&self, square: i16) -> usize {
-        // Reverse of your map_inner_to_outer_board function
+        // Reverse of map_inner_to_outer_board function
         let board_width = self.board_width;
         let rank = square / board_width;
         let file = square % board_width;
@@ -248,6 +421,11 @@ impl ChessBoard {
         (chess_rank * 8 + chess_file) as usize
     }
 
+    /// Updates castling rights based on a move.
+    ///
+    /// # Arguments
+    ///
+    /// * `mv` - The move that was made
     fn update_castling_rights(&mut self, mv: &Move) {
         let color = mv.piece.get_color();
 
@@ -318,7 +496,11 @@ impl ChessBoard {
         }
     }
 
-    /* We expect an 8x8 array of pieces*/
+    /// Sets up the board from an 8x8 array of pieces.
+    ///
+    /// # Arguments
+    ///
+    /// * `board_position` - Array of 64 pieces representing the chess board
     pub fn set_board(&mut self, board_position: &[Piece; 64]) {
         // Set all squares to invalid
         for square in self.board_squares.iter_mut() {
@@ -334,10 +516,20 @@ impl ChessBoard {
         self.piece_list.update_lists(&self.board_squares);
     }
 
+    /// Sets the en passant target square from a standard chess coordinate.
+    ///
+    /// # Arguments
+    ///
+    /// * `square` - Standard chess square index (0-63)
     pub fn set_en_passant_square(&mut self, square: i16) {
         self.en_passant_target = Some(self.map_inner_to_outer_board(square));
     }
 
+    /// Sets the castling rights from a CastlingRights struct.
+    ///
+    /// # Arguments
+    ///
+    /// * `castling_rights` - New castling rights to set
     pub fn set_castling_rights(&mut self, castling_rights: &CastlingRights) {
         self.castling_rights.white_queenside = castling_rights.white_queenside;
         self.castling_rights.white_kingside = castling_rights.white_kingside;
@@ -345,7 +537,13 @@ impl ChessBoard {
         self.castling_rights.black_kingside = castling_rights.black_kingside;
     }
 
-    // Given a move, update the board
+    /// Executes a move on the board.
+    ///
+    /// Updates the board state, castling rights, and piece lists.
+    ///
+    /// # Arguments
+    ///
+    /// * `mv` - The move to execute
     pub fn make_move(&mut self, mv: &Move) {
         self.update_castling_rights(mv);
 
@@ -382,6 +580,13 @@ impl ChessBoard {
         self.piece_list.make_move(&mv);
     }
 
+    /// Reverts a move on the board.
+    ///
+    /// Restores the board state to before the move was made.
+    ///
+    /// # Arguments
+    ///
+    /// * `mv` - The move to undo
     pub fn unmake_move(&mut self, mv: &Move) {
         // Restaure captured piece
         self.set_piece_on_square(mv.captured_piece, mv.to);
@@ -418,6 +623,15 @@ impl ChessBoard {
         self.piece_list.unmake_move(&mv);
     }
 
+    /// Searches for the best move using minimax with alpha-beta pruning.
+    ///
+    /// # Arguments
+    ///
+    /// * `side_to_move` - Color to find the best move for
+    ///
+    /// # Returns
+    ///
+    /// `Some(Move)` if a move is found, `None` if no moves available
     pub fn search(&mut self, side_to_move: Color) -> Option<Move> {
         // We clone the board so that the piece-list
         // can do and undo moves to check for legal moves
@@ -427,6 +641,10 @@ impl ChessBoard {
         best_move
     }
 
+    /// Prints the current board state to stdout.
+    ///
+    /// Shows the 12x10 internal representation with sentinel squares
+    /// and the standard chess board notation.
     pub fn print_board(&self) {
         println!("\n12x10 Chess Board:");
         println!("==============================");
@@ -451,6 +669,9 @@ impl ChessBoard {
         self.piece_list.debug_print();
     }
 
+    /// Debug function to print the raw board array.
+    ///
+    /// Shows the internal board representation with piece symbols.
     pub fn debug_print(&self) {
         for (square, piece) in self.board_squares.iter().enumerate() {
             print!("{}:{}  ", square, piece.print_piece());
@@ -460,6 +681,15 @@ impl ChessBoard {
         }
     }
 
+    /// Generates all legal moves for the given color.
+    ///
+    /// # Arguments
+    ///
+    /// * `color` - Color to generate moves for
+    ///
+    /// # Returns
+    ///
+    /// Vector of legal moves
     pub fn generate_moves(&mut self, color: Color) -> Vec<Move> {
         let mut board_copy = self.clone();
         self.piece_list.generate_legal_moves(&mut board_copy, color)
@@ -467,6 +697,7 @@ impl ChessBoard {
 }
 
 impl Default for ChessBoard {
+    /// Creates a default chess board with initial position.
     fn default() -> Self {
         ChessBoard {
             board_width: 10,

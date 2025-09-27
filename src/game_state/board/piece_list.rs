@@ -1,3 +1,9 @@
+//! Piece list data structure for efficient chess move generation.
+//!
+//! This module provides the PieceList struct which maintains separate lists
+//! for each piece type and color, enabling efficient piece tracking and
+//! move generation without scanning the entire board.
+
 use smallvec::{SmallVec, smallvec};
 use std::collections::HashMap;
 
@@ -7,24 +13,51 @@ use crate::game_state::board::Move;
 use crate::game_state::board::Piece;
 use crate::game_state::board::PieceType;
 
+/// Maintains separate lists of squares for each piece type and color.
+///
+/// This data structure provides O(1) access to pieces of a specific type
+/// and color, significantly improving move generation performance compared
+/// to scanning the entire board.
 #[derive(Clone)]
 pub struct PieceList {
+    /// White king positions (should contain exactly 1 square)
     white_king_list: Vec<i16>,
+    /// White queen positions
     white_queen_list: Vec<i16>,
+    /// White rook positions
     white_rook_list: Vec<i16>,
+    /// White bishop positions
     white_bishop_list: Vec<i16>,
+    /// White knight positions
     white_knight_list: Vec<i16>,
+    /// White pawn positions
     white_pawn_list: Vec<i16>,
 
+    /// Black king positions (should contain exactly 1 square)
     black_king_list: Vec<i16>,
+    /// Black queen positions
     black_queen_list: Vec<i16>,
+    /// Black rook positions
     black_rook_list: Vec<i16>,
+    /// Black bishop positions
     black_bishop_list: Vec<i16>,
+    /// Black knight positions
     black_knight_list: Vec<i16>,
+    /// Black pawn positions
     black_pawn_list: Vec<i16>,
 }
 
 impl PieceList {
+    /// Checks if the king of the given color is in check.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the chess board
+    /// * `color` - Color to check for check
+    ///
+    /// # Returns
+    ///
+    /// Vector of (attacker_piece, attacker_square) tuples if in check, empty otherwise
     pub fn is_king_in_check(&self, chess_board: &ChessBoard, color: Color) -> Vec<(Piece, i16)> {
         let mut attackers = Vec::new();
 
@@ -35,6 +68,17 @@ impl PieceList {
         attackers
     }
 
+    /// Finds all pieces attacking a given square.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the chess board
+    /// * `king_square` - Square to check for attacks
+    /// * `by_color` - Color of the attacking pieces
+    ///
+    /// # Returns
+    ///
+    /// Vector of (attacker_piece, attacker_square) tuples
     fn get_attackers(
         &self,
         chess_board: &ChessBoard,
@@ -73,6 +117,21 @@ impl PieceList {
         attackers
     }
 
+    /// Generates all legal moves for the given color, considering checks and pins.
+    ///
+    /// This is the main entry point for move generation. It handles:
+    /// - Normal moves when not in check
+    /// - Check evasion when in single check
+    /// - King moves only when in double check
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Mutable reference to the chess board
+    /// * `color` - Color to generate moves for
+    ///
+    /// # Returns
+    ///
+    /// Vector of legal moves
     pub fn generate_legal_moves(
         &mut self,
         chess_board: &mut ChessBoard,
@@ -90,6 +149,22 @@ impl PieceList {
         }
     }
 
+    /// Generates moves when the king is in single check.
+    ///
+    /// Only generates moves that:
+    /// - Capture the checking piece
+    /// - Block the check (for sliding pieces)
+    /// - Move the king out of check
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Mutable reference to the chess board
+    /// * `king_attackers` - Information about the checking piece
+    /// * `color` - Color to generate moves for
+    ///
+    /// # Returns
+    ///
+    /// Vector of legal evasion moves
     fn generate_attacker_captures(
         &mut self,
         chess_board: &mut ChessBoard,
@@ -118,6 +193,7 @@ impl PieceList {
 
         let pinned_pieces = self.detect_pinned_pieces(chess_board, color);
 
+        // Generate moves for all piece types
         valid_moves = self.generate_queen_moves(chess_board, &pinned_pieces, color);
         valid_moves.append(&mut self.generate_rook_moves(chess_board, &pinned_pieces, color));
         valid_moves.append(&mut self.generate_bishop_moves(chess_board, &pinned_pieces, color));
@@ -131,6 +207,19 @@ impl PieceList {
         return valid_moves;
     }
 
+    /// Generates all legal moves for the given color.
+    ///
+    /// Moves generated here won't let the king in check, but if the king
+    /// is already in check it the moves will not account for that.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Mutable reference to the chess board
+    /// * `color` - Color to generate moves for
+    ///
+    /// # Returns
+    ///
+    /// Vector of pseudo-legal moves
     fn generate_moves(&mut self, chess_board: &mut ChessBoard, color: Color) -> Vec<Move> {
         let pinned_pieces = self.detect_pinned_pieces(chess_board, color);
 
@@ -145,6 +234,19 @@ impl PieceList {
         all_moves
     }
 
+    /// Generates king moves with safety checks.
+    ///
+    /// Ensures the king doesn't move into check by temporarily removing
+    /// the king and testing if destination squares are attacked.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Mutable reference to the chess board
+    /// * `color` - Color of the king to move
+    ///
+    /// # Returns
+    ///
+    /// Vector of legal king moves
     fn generate_king_moves(&mut self, chess_board: &mut ChessBoard, color: Color) -> Vec<Move> {
         let mut moves = Vec::new();
         let (king, king_list) = match color {
@@ -194,6 +296,17 @@ impl PieceList {
         moves
     }
 
+    /// Generates queen moves considering pin constraints.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Mutable reference to the chess board
+    /// * `pinned_pieces` - Map of pinned pieces and their pin directions
+    /// * `color` - Color of the queens to move
+    ///
+    /// # Returns
+    ///
+    /// Vector of legal queen moves
     fn generate_queen_moves(
         &mut self,
         chess_board: &mut ChessBoard,
@@ -259,6 +372,17 @@ impl PieceList {
         moves
     }
 
+    /// Generates rook moves considering pin constraints.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Mutable reference to the chess board
+    /// * `pinned_pieces` - Map of pinned pieces and their pin directions
+    /// * `color` - Color of the rooks to move
+    ///
+    /// # Returns
+    ///
+    /// Vector of legal rook moves
     fn generate_rook_moves(
         &mut self,
         chess_board: &mut ChessBoard,
@@ -318,6 +442,17 @@ impl PieceList {
         moves
     }
 
+    /// Generates bishop moves considering pin constraints.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Mutable reference to the chess board
+    /// * `pinned_pieces` - Map of pinned pieces and their pin directions
+    /// * `color` - Color of the bishops to move
+    ///
+    /// # Returns
+    ///
+    /// Vector of legal bishop moves
     fn generate_bishop_moves(
         &mut self,
         chess_board: &mut ChessBoard,
@@ -381,6 +516,19 @@ impl PieceList {
         moves
     }
 
+    /// Generates knight moves considering pin constraints.
+    ///
+    /// Knights cannot move if pinned since they jump over other pieces.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Mutable reference to the chess board
+    /// * `pinned_pieces` - Map of pinned pieces and their pin directions
+    /// * `color` - Color of the knights to move
+    ///
+    /// # Returns
+    ///
+    /// Vector of legal knight moves
     fn generate_knight_moves(
         &mut self,
         chess_board: &mut ChessBoard,
@@ -428,6 +576,23 @@ impl PieceList {
         moves
     }
 
+    /// Generates pawn moves considering pin constraints and special rules.
+    ///
+    /// Handles pawn moves including:
+    /// - Single and double moves
+    /// - Captures (including en passant)
+    /// - Promotions
+    /// - Pin restrictions
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Mutable reference to the chess board
+    /// * `pinned_pieces` - Map of pinned pieces and their pin directions
+    /// * `color` - Color of the pawns to move
+    ///
+    /// # Returns
+    ///
+    /// Vector of legal pawn moves
     fn generate_pawn_moves(
         &mut self,
         chess_board: &mut ChessBoard,
@@ -689,6 +854,16 @@ impl PieceList {
         moves
     }
 
+    /// Generates castling moves if legal.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the chess board
+    /// * `color` - Color to generate castling moves for
+    ///
+    /// # Returns
+    ///
+    /// Vector of legal castling moves
     fn generate_castling_moves(&self, chess_board: &ChessBoard, color: Color) -> Vec<Move> {
         let mut moves = Vec::new();
 
@@ -750,6 +925,14 @@ impl PieceList {
         moves
     }
 
+    /// Updates piece lists from the board position.
+    ///
+    /// Clears all lists and repopulates them by scanning the board.
+    /// Used when the board is set up from an external source.
+    ///
+    /// # Arguments
+    ///
+    /// * `board_position` - Array of 120 pieces representing the board
     pub fn update_lists(&mut self, board_position: &[Piece; 120]) {
         // The board is our reference, so we can clear all of our lists
         // and set the values from the board to the list
@@ -788,6 +971,14 @@ impl PieceList {
         }
     }
 
+    /// Applies a move to the piece lists.
+    ///
+    /// Updates the internal piece lists to reflect the move being made.
+    /// Handles captures, promotions, en passant, and castling.
+    ///
+    /// # Arguments
+    ///
+    /// * `mv` - The move to apply
     pub fn make_move(&mut self, mv: &Move) {
         // Remove captured piece first (if any)
         if mv.captured_piece != Piece::EmptySquare && mv.captured_piece != Piece::SentinelSquare {
@@ -823,6 +1014,13 @@ impl PieceList {
         }
     }
 
+    /// Reverts a move in the piece lists.
+    ///
+    /// Restores the piece lists to their state before the move was made.
+    ///
+    /// # Arguments
+    ///
+    /// * `mv` - The move to undo
     pub fn unmake_move(&mut self, mv: &Move) {
         // 1. Handle castling first
         if let Some(castling) = &mv.castling {
@@ -868,6 +1066,9 @@ impl PieceList {
         }
     }
 
+    /// Prints the board using piece list information.
+    ///
+    /// Creates a visual representation of the board based on the piece lists.
     pub fn print_board(&self) {
         // Create an empty 8x8 board
         let mut board = vec!['.'; 64];
@@ -913,7 +1114,9 @@ impl PieceList {
         println!("    a b c d e f g h");
     }
 
-    // Debug function to show all piece lists
+    /// Debug function to show all piece lists.
+    ///
+    /// Prints the contents of all piece lists for debugging purposes.
     pub fn debug_print(&self) {
         println!("\nPiece List Contents:");
         println!("========================================");
@@ -938,6 +1141,15 @@ impl PieceList {
         print_list("Black Pawns", &self.black_pawn_list);
     }
 
+    /// Adds a piece to the appropriate list in sorted order.
+    ///
+    /// Uses binary search to maintain sorted order for efficient lookups.
+    /// This ensures O(log n) insertion time and maintains list integrity.
+    ///
+    /// # Arguments
+    ///
+    /// * `piece` - Piece to add
+    /// * `square` - Square where the piece is located
     fn add_piece(&mut self, piece: Piece, square: i16) {
         let list = self.get_list_mut(piece);
         if let Some(list) = list {
@@ -948,7 +1160,19 @@ impl PieceList {
             }
         }
     }
-
+    /// Removes a piece from the appropriate list.
+    ///
+    /// Uses binary search for efficient O(log n) removal.
+    /// Returns whether the piece was successfully found and removed.
+    ///
+    /// # Arguments
+    ///
+    /// * `piece` - Piece to remove
+    /// * `square` - Square where the piece is located
+    ///
+    /// # Returns
+    ///
+    /// `true` if piece was found and removed, `false` otherwise
     fn remove_piece(&mut self, piece: Piece, square: i16) -> bool {
         let list = self.get_list_mut(piece);
         if let Some(list) = list {
@@ -965,6 +1189,15 @@ impl PieceList {
         false // Piece list not found
     }
 
+    /// Gets a mutable reference to the list for a specific piece type.
+    ///
+    /// # Arguments
+    ///
+    /// * `piece` - Piece type to get the list for
+    ///
+    /// # Returns
+    ///
+    /// Mutable reference to the piece list, or `None` for invalid pieces
     fn get_list_mut(&mut self, piece: Piece) -> Option<&mut Vec<i16>> {
         match piece {
             Piece::WhitePawn => Some(&mut self.white_pawn_list),
@@ -983,6 +1216,15 @@ impl PieceList {
         }
     }
 
+    /// Gets a reference to the list for a specific piece type.
+    ///
+    /// # Arguments
+    ///
+    /// * `piece` - Piece type to get the list for
+    ///
+    /// # Returns
+    ///
+    /// Reference to the piece list, or `None` for invalid pieces
     fn get_list(&self, piece: Piece) -> Option<&Vec<i16>> {
         match piece {
             Piece::WhitePawn => Some(&self.white_pawn_list),
@@ -1001,6 +1243,15 @@ impl PieceList {
         }
     }
 
+    /// Gets the number of pieces of a specific type on the board.
+    ///
+    /// # Arguments
+    ///
+    /// * `piece` - Piece type to count
+    ///
+    /// # Returns
+    ///
+    /// Number of pieces, or `None` if the piece type is invalid
     pub fn get_number_of_pieces(&self, piece: Piece) -> Option<i64> {
         if let Some(piece_list) = self.get_list(piece) {
             return Some(piece_list.len() as i64);
@@ -1008,6 +1259,19 @@ impl PieceList {
         None
     }
 
+    /// Checks if a bishop can attack from one square to another.
+    ///
+    /// Verifies that the move is diagonal and that no pieces block the path.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the chess board
+    /// * `from` - Starting square
+    /// * `to` - Target square
+    ///
+    /// # Returns
+    ///
+    /// `true` if the bishop can legally attack the target square
     fn bishop_attack(chess_board: &ChessBoard, from: i16, to: i16) -> bool {
         // Sanity check, the squares can't be the same
         if from == to {
@@ -1047,6 +1311,19 @@ impl PieceList {
         true
     }
 
+    /// Checks if a rook can attack from one square to another.
+    ///
+    /// Verifies that the move is horizontal/vertical and that no pieces block the path.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the chess board
+    /// * `from` - Starting square
+    /// * `to` - Target square
+    ///
+    /// # Returns
+    ///
+    /// `true` if the rook can legally attack the target square
     fn rook_attack(chess_board: &ChessBoard, from: i16, to: i16) -> bool {
         // Check if the squares are in the same file or in the same rank.
         let same_rank = chess_board.are_on_the_same_rank(from, to);
@@ -1086,6 +1363,19 @@ impl PieceList {
         true
     }
 
+    /// Checks if a queen can attack from one square to another.
+    ///
+    /// Combines bishop and rook movement patterns.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the chess board
+    /// * `from` - Starting square
+    /// * `to` - Target square
+    ///
+    /// # Returns
+    ///
+    /// `true` if the queen can legally attack the target square
     fn queen_attack(chess_board: &ChessBoard, from: i16, to: i16) -> bool {
         // Check if the queen can move like a bishop to the 'to' square
         let bishop = PieceList::bishop_attack(chess_board, from, to);
@@ -1103,6 +1393,19 @@ impl PieceList {
         false
     }
 
+    /// Checks if a king can attack from one square to another.
+    ///
+    /// Kings can only move one square in any direction.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the chess board
+    /// * `from` - Starting square
+    /// * `to` - Target square
+    ///
+    /// # Returns
+    ///
+    /// `true` if the king can legally attack the target square
     fn king_attack(chess_board: &ChessBoard, from: i16, to: i16) -> bool {
         if from == to {
             return false;
@@ -1124,6 +1427,19 @@ impl PieceList {
         true
     }
 
+    /// Checks if a knight can attack from one square to another.
+    ///
+    /// Knights move in an L-shape: 2 squares in one direction and 1 square perpendicular.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the chess board
+    /// * `from` - Starting square
+    /// * `to` - Target square
+    ///
+    /// # Returns
+    ///
+    /// `true` if the knight can legally attack the target square
     fn knight_attack(chess_board: &ChessBoard, from: i16, to: i16) -> bool {
         if from == to {
             return false;
@@ -1146,6 +1462,20 @@ impl PieceList {
         false
     }
 
+    /// Checks if a pawn can attack from one square to another.
+    ///
+    /// Pawns capture diagonally one square forward.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the chess board
+    /// * `from` - Starting square
+    /// * `to` - Target square
+    /// * `color` - Color of the pawn
+    ///
+    /// # Returns
+    ///
+    /// `true` if the pawn can legally attack the target square
     fn pawn_attack(chess_board: &ChessBoard, from: i16, to: i16, color: Color) -> bool {
         if from == to {
             return false;
@@ -1181,6 +1511,15 @@ impl PieceList {
         true
     }
 
+    /// Gets the square where the king of the given color is located.
+    ///
+    /// # Arguments
+    ///
+    /// * `color` - Color of the king to find
+    ///
+    /// # Returns
+    ///
+    /// Square where the king is located, or `None` if not found
     fn get_king_square(&self, color: Color) -> Option<i16> {
         if color == Color::White {
             if let Some(king_list) = self.get_list(Piece::WhiteKing) {
@@ -1199,6 +1538,18 @@ impl PieceList {
         }
     }
 
+    /// Detects all pieces that are pinned to the king.
+    ///
+    /// A piece is pinned if moving it would expose the king to check.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the chess board
+    /// * `color` - Color to check for pinned pieces
+    ///
+    /// # Returns
+    ///
+    /// HashMap mapping pinned piece squares to their pin directions
     fn detect_pinned_pieces(&self, chess_board: &ChessBoard, color: Color) -> HashMap<i16, i16> {
         let mut pinned_pieces = HashMap::new();
 
@@ -1227,6 +1578,18 @@ impl PieceList {
         pinned_pieces
     }
 
+    /// Finds pinned pieces in a specific direction from the king.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the chess board
+    /// * `king_square` - Square where the king is located
+    /// * `direction` - Direction to search for pins
+    /// * `color` - Color of the king
+    ///
+    /// # Returns
+    ///
+    /// Tuple of (pinned_square, pin_direction) if a pin is found
     fn find_pinned_piece_in_direction(
         &self,
         chess_board: &ChessBoard,
@@ -1266,6 +1629,19 @@ impl PieceList {
         None
     }
 
+    /// Checks if a piece can pin in a given direction.
+    ///
+    /// Only sliding pieces (queen, rook, bishop) can pin.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the chess board
+    /// * `piece` - Piece to check
+    /// * `direction` - Direction of the potential pin
+    ///
+    /// # Returns
+    ///
+    /// `true` if the piece can pin in the given direction
     fn can_piece_pin_in_direction(
         &self,
         chess_board: &ChessBoard,
@@ -1287,6 +1663,20 @@ impl PieceList {
         }
     }
 
+    /// Checks if kingside castling is legal for the given color.
+    ///
+    /// Verifies all castling conditions: rights, piece positions, empty squares, and safety.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the chess board
+    /// * `color` - Color attempting to castle
+    /// * `king_square` - Expected king starting square
+    /// * `rook_square` - Expected rook starting square
+    ///
+    /// # Returns
+    ///
+    /// `true` if kingside castling is legal
     fn can_castle_kingside(
         &self,
         chess_board: &ChessBoard,
@@ -1356,6 +1746,20 @@ impl PieceList {
         true
     }
 
+    /// Checks if queenside castling is legal for the given color.
+    ///
+    /// Verifies all castling conditions: rights, piece positions, empty squares, and safety.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the chess board
+    /// * `color` - Color attempting to castle
+    /// * `king_square` - Expected king starting square
+    /// * `rook_square` - Expected rook starting square
+    ///
+    /// # Returns
+    ///
+    /// `true` if queenside castling is legal
     fn can_castle_queenside(
         &self,
         chess_board: &ChessBoard,
@@ -1425,6 +1829,17 @@ impl PieceList {
         true
     }
 
+    /// Checks if a square is attacked by any piece of the given color.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the chess board
+    /// * `square` - Square to check for attacks
+    /// * `by_color` - Color of the attacking pieces
+    ///
+    /// # Returns
+    ///
+    /// `true` if the square is attacked by the given color
     fn is_square_attacked(&self, chess_board: &ChessBoard, square: i16, by_color: Color) -> bool {
         let attacker_pieces = match by_color {
             Color::White => [
@@ -1457,6 +1872,18 @@ impl PieceList {
         false
     }
 
+    /// Checks if a specific piece type attacks a given square.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the chess board
+    /// * `square` - Square to check for attacks
+    /// * `attack_piece` - Type of piece to check
+    /// * `by_color` - Color of the attacking pieces
+    ///
+    /// # Returns
+    ///
+    /// Some((piece, square)) if attacked, None otherwise
     fn is_attacked_by_piece(
         &self,
         chess_board: &ChessBoard,
@@ -1487,6 +1914,7 @@ impl PieceList {
 }
 
 impl Default for PieceList {
+    /// Creates an empty piece list.
     fn default() -> Self {
         PieceList {
             white_king_list: Vec::new(),

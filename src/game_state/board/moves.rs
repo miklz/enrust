@@ -1,23 +1,61 @@
+//! Chess move representation and conversion utilities.
+//!
+//! This module provides the Move struct for representing chess moves and
+//! conversion functions between different move notations (UCI, algebraic).
+
 use super::piece::{Color, Piece, PieceType};
 use crate::game_state::ChessBoard;
 use crate::game_state::board::CastlingInfo;
 use crate::game_state::board::CastlingRights;
 
+/// Represents a chess move with all associated metadata.
+///
+/// Stores information about the move itself, captured pieces, special moves
+/// (castling, en passant, promotion), and state needed for move unmaking.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Move {
+    /// Starting square of the moving piece
     pub from: i16,
+    /// Destination square of the moving piece
     pub to: i16,
-    pub piece: Piece,                                     // The moving piece
-    pub captured_piece: Piece, // Piece captured (Empty squares count as pieces)
-    pub promotion: Option<Piece>, // Promotion piece (if any)
-    pub castling: Option<CastlingInfo>, // Castling information
-    pub en_passant: bool,      // Whether this is an en passant capture
-    pub en_passant_square: Option<i16>, // Set when pawn moves two squares
-    pub previous_en_passant: Option<i16>, // Previous en passant target
-    pub previous_castling_rights: Option<CastlingRights>, // Previous castling rights
+    /// The piece being moved
+    pub piece: Piece,
+    /// Piece captured by this move (EmptySquare if no capture)
+    pub captured_piece: Piece,
+    /// Promotion piece if this move promotes a pawn
+    pub promotion: Option<Piece>,
+    /// Castling information if this is a castling move
+    pub castling: Option<CastlingInfo>,
+    /// Whether this is an en passant capture
+    pub en_passant: bool,
+    /// En passant target square set by double pawn moves
+    pub en_passant_square: Option<i16>,
+    /// Previous en passant target for move unmaking
+    pub previous_en_passant: Option<i16>,
+    /// Previous castling rights for move unmaking
+    pub previous_castling_rights: Option<CastlingRights>,
 }
 
 impl Move {
+    /// Creates a pawn move with pawn-specific metadata.
+    ///
+    /// Handles pawn moves including promotions, en passant captures, and
+    /// double moves that set new en passant targets.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the current board state
+    /// * `from` - Starting square
+    /// * `to` - Destination square
+    /// * `piece` - The pawn being moved
+    /// * `captured` - Captured piece (if any)
+    /// * `promotion` - Promotion piece (for promotions)
+    /// * `en_passant` - Whether this is an en passant capture
+    /// * `en_passant_square` - New en passant target (for double moves)
+    ///
+    /// # Returns
+    ///
+    /// A new Move instance configured for pawn movement
     pub fn create_pawn_move(
         chess_board: &ChessBoard,
         from: i16,
@@ -42,6 +80,19 @@ impl Move {
         }
     }
 
+    /// Creates a standard move for non-pawn pieces.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the current board state
+    /// * `from` - Starting square
+    /// * `to` - Destination square
+    /// * `piece` - The piece being moved
+    /// * `captured` - Captured piece (if any)
+    ///
+    /// # Returns
+    ///
+    /// A new Move instance for standard piece movement
     pub fn create_move(
         chess_board: &ChessBoard,
         from: i16,
@@ -63,6 +114,20 @@ impl Move {
         }
     }
 
+    /// Creates a castling move with king and rook movement information.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the current board state
+    /// * `king_from` - King's starting square
+    /// * `king_to` - King's destination square
+    /// * `king_piece` - The king piece
+    /// * `rook_from` - Rook's starting square
+    /// * `rook_to` - Rook's destination square
+    ///
+    /// # Returns
+    ///
+    /// A new Move instance configured for castling
     pub fn create_castling_move(
         chess_board: &ChessBoard,
         king_from: i16,
@@ -98,6 +163,18 @@ impl Move {
         }
     }
 
+    /// Detects if a move is a castling move based on piece type and squares.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the current board state
+    /// * `piece` - The piece being moved (must be a king)
+    /// * `from` - Starting square
+    /// * `to` - Destination square
+    ///
+    /// # Returns
+    ///
+    /// `Some(CastlingInfo)` if the move is castling, `None` otherwise
     fn detect_castling(
         chess_board: &ChessBoard,
         piece: Piece,
@@ -171,6 +248,19 @@ impl Move {
         None
     }
 
+    /// Detects if a move is an en passant capture.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the current board state
+    /// * `piece` - The piece being moved (must be a pawn)
+    /// * `from` - Starting square
+    /// * `to` - Destination square
+    /// * `captured` - Piece on the destination square
+    ///
+    /// # Returns
+    ///
+    /// `true` if the move is an en passant capture, `false` otherwise
     fn detect_en_passant(
         chess_board: &ChessBoard,
         piece: Piece,
@@ -194,6 +284,16 @@ impl Move {
         false
     }
 
+    /// Converts an internal board square to algebraic notation.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the current board state
+    /// * `square` - Internal board coordinate
+    ///
+    /// # Returns
+    ///
+    /// Algebraic notation string (e.g., "e4", "a1")
     fn square_to_notation(chess_board: &ChessBoard, square: i16) -> String {
         // Convert from your internal 0-63 representation to algebraic notation
         let chess_square = chess_board.map_to_standard_chess_board(square);
@@ -206,7 +306,15 @@ impl Move {
         format!("{}{}", file_char, rank_char)
     }
 
-    /* Convert <rank><file> to 8x8 square */
+    /// Converts algebraic notation to a standard chess square index.
+    ///
+    /// # Arguments
+    ///
+    /// * `square_notation` - Algebraic notation string (e.g., "e4")
+    ///
+    /// # Returns
+    ///
+    /// `Some(i16)` with 0-63 square index if valid, `None` otherwise
     pub fn notation_to_square(square_notation: &str) -> Option<i16> {
         if square_notation.len() != 2 {
             return None;
@@ -225,10 +333,19 @@ impl Move {
         Some(rank_idx * 8 + file_idx)
     }
 
-    /* Convert uci algebraic notation format:
-     * <from square><to square>[<promoted to>]
-     * to Move struct
-     */
+    /// Parses a UCI algebraic notation string into a Move struct.
+    ///
+    /// Supports standard UCI format: `<from><to>[<promotion>]`
+    /// Examples: "e2e4", "g1f3", "a7a8q"
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the current board state
+    /// * `uci_notation` - UCI move string
+    ///
+    /// # Returns
+    ///
+    /// `Some(Move)` if the notation is valid, `None` otherwise
     pub fn parse_algebraic_move(chess_board: &ChessBoard, uci_notation: &str) -> Option<Self> {
         if uci_notation.len() < 4 {
             return None;
@@ -316,6 +433,15 @@ impl Move {
         })
     }
 
+    /// Converts the move to UCI algebraic notation.
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the current board state
+    ///
+    /// # Returns
+    ///
+    /// UCI string representation of the move
     pub fn to_uci(&self, chess_board: &ChessBoard) -> String {
         let from_square = Self::square_to_notation(chess_board, self.from);
         let to_square = Self::square_to_notation(chess_board, self.to);
@@ -335,6 +461,11 @@ impl Move {
         format!("{}{}{}", from_square, to_square, promotion_suffix)
     }
 
+    /// Checks if this move is a capture.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the move captures a piece, `false` otherwise
     pub fn is_capture(&self) -> bool {
         self.captured_piece.is_valid_piece()
     }
