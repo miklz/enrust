@@ -596,12 +596,7 @@ impl ChessBoard {
     /// # Returns
     ///
     /// `true` if kingside castling is legal
-    fn can_castle_kingside(
-        &self,
-        color: Color,
-        king_square: i16,
-        rook_square: i16,
-    ) -> bool {
+    fn can_castle_kingside(&self, color: Color, king_square: i16, rook_square: i16) -> bool {
         // 0. Check if castling privileges are valid
         if (color == Color::White) && (self.castling_rights.white_kingside != true) {
             return false;
@@ -656,7 +651,10 @@ impl ChessBoard {
             } else {
                 Color::White
             };
-            if self.piece_list.is_square_attacked(&self, square, opposite_color) {
+            if self
+                .piece_list
+                .is_square_attacked(&self, square, opposite_color)
+            {
                 return false;
             }
         }
@@ -678,12 +676,7 @@ impl ChessBoard {
     /// # Returns
     ///
     /// `true` if queenside castling is legal
-    fn can_castle_queenside(
-        &self,
-        color: Color,
-        king_square: i16,
-        rook_square: i16,
-    ) -> bool {
+    fn can_castle_queenside(&self, color: Color, king_square: i16, rook_square: i16) -> bool {
         // 0. Check if castling privileges are valid
         if (color == Color::White) && (self.castling_rights.white_queenside != true) {
             return false;
@@ -738,7 +731,10 @@ impl ChessBoard {
             } else {
                 Color::White
             };
-            if self.piece_list.is_square_attacked(&self, square, opposite_color) {
+            if self
+                .piece_list
+                .is_square_attacked(&self, square, opposite_color)
+            {
                 return false;
             }
         }

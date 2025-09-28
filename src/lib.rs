@@ -14,8 +14,9 @@
 //!
 //! The engine is organized into several key modules:
 //!
-//! - [`game_state`]: Core chess logic including board representation, move generation, and search
-//! - [`uci`]: UCI protocol implementation for GUI communication
+//! - [`game_state`]: High-level game state management including position setup, move execution, search configuration
+//! - [`game_state::board`]: Core chess logic including board representation, move generation, and search
+//! - [`game_state::uci`]: UCI protocol implementation for GUI communication
 //!
 //! ### Key Design Features
 //!
@@ -110,7 +111,7 @@
 //! - [`game_state::GameState`]: High-level game state management
 //! - Search algorithms (minimax, alpha-beta, quiescence)
 //!
-//! ### [`uci`] Module
+//! ### [`game_state::uci`] Module
 //!
 //! Handles the UCI protocol:
 //!
@@ -180,7 +181,6 @@
 //! - UCI protocol specification by Stefan Meyer-Kahlen
 
 pub mod game_state;
-pub mod uci;
 
 /// Starts the chess engine in UCI mode.
 ///
@@ -209,5 +209,5 @@ pub mod uci;
 ///
 /// This is the main entry point for using EnRust as a UCI chess engine.
 pub fn start_engine() {
-    uci::uci_main();
+    game_state::uci_main();
 }

@@ -4,7 +4,10 @@
 //! position setup, move execution, search configuration, and UCI protocol
 //! integration for chess engine communication.
 
+use std::io::{self, Write};
+
 pub mod board;
+pub mod uci;
 pub use board::CastlingRights;
 pub use board::ChessBoard;
 pub use board::moves::Move;
@@ -439,5 +442,114 @@ impl Default for GameState {
             search_control: None,
             board: ChessBoard::default(),
         }
+    }
+}
+
+/// Main UCI protocol loop for handling commands from chess GUIs.
+///
+/// Implements the UCI protocol state machine that processes commands from
+/// standard input and sends responses to standard output. The loop continues
+/// until receiving the "quit" command.
+///
+/// # Supported Commands
+///
+/// - `uci`: Engine identification
+/// - `isready`: Engine readiness check
+/// - `ucinewgame`: Start new game
+/// - `position`: Set up board position
+/// - `go`: Start search with parameters
+/// - `quit`: Exit the engine
+/// - `print`: Debug command to display board state
+///
+/// # Protocol Flow
+///
+/// 1. GUI sends `uci` to initialize
+/// 2. Engine responds with identification and `uciok`
+/// 3. GUI sends `isready` to check engine status
+/// 4. Engine responds with `readyok`
+/// 5. GUI sends `position` to set up the board
+/// 6. GUI sends `go` to start search
+/// 7. Engine responds with `bestmove` when search completes
+/// 8. Process repeats until `quit` command
+pub fn uci_main() {
+    let mut game_state = GameState::default();
+
+    // Main UCI protocol loop
+    loop {
+        // Read from stdin
+        let mut cli_cmd = String::new();
+        io::stdin()
+            .read_line(&mut cli_cmd)
+            .expect("Failed to read command");
+
+        let cmd = cli_cmd.trim();
+        let mut uci_cmd = cmd.split_whitespace();
+
+        // Get command keyword and dispatch to appropriate handler
+        if let Some(keyword) = uci_cmd.next() {
+            match keyword {
+                "uci" => {
+                    uci::handle_uci_command();
+                }
+                "isready" => {
+                    // Confirm engine is ready to receive commands
+                    println!("readyok");
+                }
+                "ucinewgame" => {
+                    // Reset to standard starting position
+                    game_state.start_position();
+                }
+                "quit" => {
+                    // Exit the UCI protocol loop
+                    break;
+                }
+                "position" => {
+                    let args: Vec<&str> = uci_cmd.collect();
+
+                    if args.is_empty() {
+                        println!("info string No position args");
+                    } else if args[0] == "startpos" {
+                        // Set up standard starting position
+                        game_state.start_position();
+                        // Apply move sequence if provided
+                        if args.len() > 1 && args[1] == "moves" {
+                            for mv in &args[2..] {
+                                game_state.make_move(mv);
+                            }
+                        }
+                    } else if args[0] == "fen" {
+                        // Set up custom position from FEN string
+                        if let Some(idx) = args.iter().position(|&x| x == "moves") {
+                            // FEN followed by move sequence
+                            let fen = args[1..idx].join(" ");
+                            game_state.set_fen_position(&fen);
+                            for mv in &args[idx + 1..] {
+                                game_state.make_move(mv);
+                            }
+                        } else {
+                            // FEN without additional moves
+                            let fen = args[1..].join(" ");
+                            game_state.set_fen_position(&fen);
+                        }
+                    }
+                }
+                "go" => {
+                    // Start search with parsed parameters
+                    uci::handle_go_command(&mut game_state, &mut uci_cmd);
+                }
+                // This is not a uci command, is my way of printing the board
+                "print" => {
+                    // Debug command to display current board state
+                    game_state.print_board();
+                }
+                _ => {
+                    // Handle unrecognized commands gracefully
+                    println!("info string Unhandled command: {}", cmd);
+                }
+            }
+        }
+
+        // Flush stdout after every response (important for UCI protocol)
+        io::stdout().flush().unwrap();
     }
 }

@@ -1639,7 +1639,12 @@ impl PieceList {
     /// # Returns
     ///
     /// `true` if the square is attacked by the given color
-    pub fn is_square_attacked(&self, chess_board: &ChessBoard, square: i16, by_color: Color) -> bool {
+    pub fn is_square_attacked(
+        &self,
+        chess_board: &ChessBoard,
+        square: i16,
+        by_color: Color,
+    ) -> bool {
         let attacker_pieces = match by_color {
             Color::White => [
                 Piece::WhiteQueen,
