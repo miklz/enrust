@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
-use divan::{Bencher, black_box};
+use divan::black_box;
 use enrust::game_state::ChessBoard;
 use enrust::game_state::Color;
 use enrust::game_state::GameState;
