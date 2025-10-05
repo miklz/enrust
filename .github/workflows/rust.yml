@@ -16,21 +16,24 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Setup Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: stable
-        components: rustfmt
-        
+        components: rustfmt clippy
+
     - name: Check formatting
       run: cargo fmt -- --check
-    
+
+    - name: Clippy lint
+      run: cargo clippy -- -D warnings
+
     - name: Build
       run: cargo build --release --verbose
-    
+
     - name: Run tests
       run: cargo test --verbose
-    
+
     - name: Run benchmarks
       run: cargo bench --verbose
