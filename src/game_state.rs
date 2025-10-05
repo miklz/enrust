@@ -49,6 +49,12 @@ pub struct SearchConfiguration {
     pub mate: Option<u32>,
 }
 
+impl Default for SearchConfiguration {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SearchConfiguration {
     /// Creates a new search configuration with default values.
     ///
@@ -316,12 +322,9 @@ impl GameState {
     ///
     /// * `algebraic_notation` - Move in UCI format to execute
     pub fn make_move(&mut self, algebraic_notation: &str) {
-        match self.create_move(algebraic_notation) {
-            Some(mv) => {
-                self.board.make_move(&mv);
-                self.side_to_move = self.side_to_move.opposite();
-            }
-            None => (),
+        if let Some(mv) = self.create_move(algebraic_notation) {
+            self.board.make_move(&mv);
+            self.side_to_move = self.side_to_move.opposite();
         }
     }
 
@@ -331,12 +334,9 @@ impl GameState {
     ///
     /// * `algebraic_notation` - Move in UCI format to undo
     pub fn unmake_move(&mut self, algebraic_notation: &str) {
-        match self.create_move(algebraic_notation) {
-            Some(mv) => {
-                self.board.unmake_move(&mv);
-                self.side_to_move = self.side_to_move.opposite();
-            }
-            None => (),
+        if let Some(mv) = self.create_move(algebraic_notation) {
+            self.board.unmake_move(&mv);
+            self.side_to_move = self.side_to_move.opposite();
         }
     }
 
@@ -403,20 +403,20 @@ impl GameState {
     ///   player's time remaining, increment, and moves until next time control
     /// - If time allocation is determined (`Some(Duration)`), spawns a timer thread
     /// - The timer thread sleeps for the allocated duration, then calls the
-    ///  `game_state.stop_search()`
+    ///   `game_state.stop_search()`
     /// - If no time allocation is calculated (`None`), no timer is started,
     ///   allowing for infinite search (when `infinite` flag is set in configuration)
     fn time_manager(&self) {
-        if let Some(search_control) = &self.search_control {
-            if let Some(time_to_think) = search_control.time_for_move(self.side_to_move) {
-                // Here we spawn a new thread that will interrupt the search
-                // after the calculated time period.
-                let stop_flag = self.stop_flag.clone();
-                thread::spawn(move || {
-                    thread::sleep(time_to_think);
-                    stop_flag.store(true, Ordering::Release);
-                });
-            }
+        if let Some(search_control) = &self.search_control
+            && let Some(time_to_think) = search_control.time_for_move(self.side_to_move)
+        {
+            // Here we spawn a new thread that will interrupt the search
+            // after the calculated time period.
+            let stop_flag = self.stop_flag.clone();
+            thread::spawn(move || {
+                thread::sleep(time_to_think);
+                stop_flag.store(true, Ordering::Release);
+            });
         }
     }
 

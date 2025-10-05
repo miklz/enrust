@@ -127,12 +127,11 @@ impl ChessBoard {
             .get_number_of_pieces(Piece::BlackPawn)
             .unwrap_or(0);
 
-        let material = 20000 * (w_king - b_king)
+        20000 * (w_king - b_king)
             + 900 * (w_queen - b_queen)
             + 500 * (w_rook - b_rook)
             + 300 * (w_bishop - b_bishop + w_knight - b_kinght)
-            + 100 * (w_pawn - b_pawn);
-        material
+            + 100 * (w_pawn - b_pawn)
     }
 
     /// Evaluates the current board position using material counting.
@@ -168,7 +167,7 @@ impl ChessBoard {
     ///
     /// `true` if the king is under attack
     pub fn is_in_check(&self, color: Color) -> bool {
-        self.piece_list.is_king_in_check(&self, color).len() > 0
+        !self.piece_list.is_king_in_check(self, color).is_empty()
     }
 
     /// Parses a move from UCI algebraic notation.
@@ -181,7 +180,7 @@ impl ChessBoard {
     ///
     /// `Some(Move)` if the notation is valid, `None` otherwise
     pub fn from_uci(&self, uci_notation: &str) -> Option<Move> {
-        Move::parse_algebraic_move(&self, uci_notation)
+        Move::parse_algebraic_move(self, uci_notation)
     }
 
     /// Converts a move to UCI algebraic notation.
@@ -194,7 +193,7 @@ impl ChessBoard {
     ///
     /// UCI string representation of the move
     pub fn move_to_uci(&self, mv: &Move) -> String {
-        mv.to_uci(&self)
+        mv.to_uci(self)
     }
 
     /// Converts algebraic notation to internal board coordinates.
@@ -359,17 +358,13 @@ impl ChessBoard {
         // same rank, we need to get in which direction the rook should
         // move.
         let distance = to - from;
-        let direction = if same_rank {
+        if same_rank {
             if distance > 0 { 1 } else { -1 }
+        } else if distance > 0 {
+            self.board_width
         } else {
-            if distance > 0 {
-                self.board_width
-            } else {
-                -self.board_width
-            }
-        };
-
-        direction
+            -self.board_width
+        }
     }
 
     /// Get the direction that if a square can reach another in diagonal lines.
@@ -408,9 +403,7 @@ impl ChessBoard {
         let col2 = self.square_file(to);
         let col_dir: i16 = if col2 > col1 { 1 } else { -1 };
 
-        let direction = row_dir * self.board_width + col_dir;
-
-        direction
+        row_dir * self.board_width + col_dir
     }
 
     /// Gets the current en passant target square.
@@ -484,9 +477,8 @@ impl ChessBoard {
         let chess_file = square % 8;
 
         // Internal position = (rows above) + (chess rank) × (board width) + (columns left) + (chess file)
-        let internal_square = self.board_width * chess_rank + chess_file + board_offset;
 
-        internal_square as i16
+        self.board_width * chess_rank + chess_file + board_offset
     }
 
     /// Maps an internal board coordinate to standard chess square index.
@@ -601,11 +593,11 @@ impl ChessBoard {
     /// `true` if kingside castling is legal
     fn can_castle_kingside(&self, color: Color, king_square: i16, rook_square: i16) -> bool {
         // 0. Check if castling privileges are valid
-        if (color == Color::White) && (self.castling_rights.white_kingside != true) {
+        if (color == Color::White) && (!self.castling_rights.white_kingside) {
             return false;
         }
 
-        if (color == Color::Black) && (self.castling_rights.black_kingside != true) {
+        if (color == Color::Black) && (!self.castling_rights.black_kingside) {
             return false;
         }
 
@@ -656,7 +648,7 @@ impl ChessBoard {
             };
             if self
                 .piece_list
-                .is_square_attacked(&self, square, opposite_color)
+                .is_square_attacked(self, square, opposite_color)
             {
                 return false;
             }
@@ -681,11 +673,11 @@ impl ChessBoard {
     /// `true` if queenside castling is legal
     fn can_castle_queenside(&self, color: Color, king_square: i16, rook_square: i16) -> bool {
         // 0. Check if castling privileges are valid
-        if (color == Color::White) && (self.castling_rights.white_queenside != true) {
+        if (color == Color::White) && (!self.castling_rights.white_queenside) {
             return false;
         }
 
-        if (color == Color::Black) && (self.castling_rights.black_queenside != true) {
+        if (color == Color::Black) && (!self.castling_rights.black_queenside) {
             return false;
         }
 
@@ -736,7 +728,7 @@ impl ChessBoard {
             };
             if self
                 .piece_list
-                .is_square_attacked(&self, square, opposite_color)
+                .is_square_attacked(self, square, opposite_color)
             {
                 return false;
             }
@@ -826,7 +818,7 @@ impl ChessBoard {
         self.set_en_passant_target(mv.en_passant_square);
 
         // Update piece list
-        self.piece_list.make_move(&mv);
+        self.piece_list.make_move(mv);
     }
 
     /// Reverts a move on the board.
@@ -869,7 +861,7 @@ impl ChessBoard {
         // Restore en passant square to previous state
         self.set_en_passant_target(mv.previous_en_passant);
 
-        self.piece_list.unmake_move(&mv);
+        self.piece_list.unmake_move(mv);
     }
 
     /// Searches for the best move using minimax with alpha-beta pruning.
@@ -926,7 +918,7 @@ impl ChessBoard {
         for (square, piece) in self.board_squares.iter().enumerate() {
             print!("{}:{}  ", square, piece.print_piece());
             if square % 10 == 0 {
-                println!("");
+                println!();
             }
         }
     }
@@ -1030,7 +1022,7 @@ mod castling_tests {
         let mut game = GameState::default();
         game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
 
-        let initial_board = game.board.board_squares.clone();
+        let initial_board = game.board.board_squares;
         let initial_castling = game.board.castling_rights;
 
         // Make and unmake castling move

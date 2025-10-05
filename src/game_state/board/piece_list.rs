@@ -12,6 +12,7 @@ use crate::game_state::board::Color;
 use crate::game_state::board::Move;
 use crate::game_state::board::Piece;
 use crate::game_state::board::PieceType;
+use crate::game_state::board::moves::PawnMoveConfig;
 
 /// Maintains separate lists of squares for each piece type and color.
 ///
@@ -140,12 +141,12 @@ impl PieceList {
         let king_attackers = self.is_king_in_check(chess_board, color);
 
         if king_attackers.is_empty() {
-            return self.generate_moves(chess_board, color);
+            self.generate_moves(chess_board, color)
         } else if king_attackers.len() == 1 {
-            return self.generate_attacker_captures(chess_board, king_attackers, color);
+            self.generate_attacker_captures(chess_board, king_attackers, color)
         } else {
             // If multiple attackers, only king moves are possible
-            return self.generate_king_moves(chess_board, color);
+            self.generate_king_moves(chess_board, color)
         }
     }
 
@@ -204,7 +205,7 @@ impl PieceList {
         valid_moves.retain(|mv| blocking_squares.contains(&mv.to));
         valid_moves.append(&mut self.generate_king_moves(chess_board, color));
 
-        return valid_moves;
+        valid_moves
     }
 
     /// Generates all legal moves for the given color.
@@ -547,10 +548,10 @@ impl PieceList {
             2 * chess_board.board_width - 1,
             -2 * chess_board.board_width + 1,
             -2 * chess_board.board_width - 1,
-            chess_board.board_width * 1 + 2,
-            chess_board.board_width * 1 - 2,
-            -chess_board.board_width * 1 + 2,
-            -chess_board.board_width * 1 - 2,
+            chess_board.board_width + 2,
+            chess_board.board_width - 2,
+            -chess_board.board_width + 2,
+            -chess_board.board_width - 2,
         ];
 
         for &square in knight_list {
@@ -678,27 +679,33 @@ impl PieceList {
             let first_target = chess_board.get_piece_on_square(square + direction);
             if move_forward && first_target.is_empty() {
                 if chess_board.square_rank(square + direction) != promotion_rank {
+                    let pawn_config = PawnMoveConfig {
+                        promotion: None,
+                        en_passant: false,
+                        en_passant_square: None,
+                    };
                     moves.push(Move::create_pawn_move(
                         chess_board,
                         square,
                         square + direction,
                         pawn,
                         first_target,
-                        None,
-                        false,
-                        None,
+                        pawn_config,
                     ));
                 } else {
                     for promotion in promotion_pieces {
+                        let pawn_config = PawnMoveConfig {
+                            promotion: Some(promotion),
+                            en_passant: false,
+                            en_passant_square: None,
+                        };
                         moves.push(Move::create_pawn_move(
                             chess_board,
                             square,
                             square + direction,
                             pawn,
                             first_target,
-                            Some(promotion),
-                            false,
-                            None,
+                            pawn_config,
                         ));
                     }
                 }
@@ -707,27 +714,33 @@ impl PieceList {
             let target = chess_board.get_piece_on_square(square + direction + 1);
             if capture_right && target.is_opponent(color) {
                 if chess_board.square_rank(square + direction + 1) != promotion_rank {
+                    let pawn_config = PawnMoveConfig {
+                        promotion: None,
+                        en_passant: false,
+                        en_passant_square: None,
+                    };
                     moves.push(Move::create_pawn_move(
                         chess_board,
                         square,
                         square + direction + 1,
                         pawn,
                         target,
-                        None,
-                        false,
-                        None,
+                        pawn_config,
                     ));
                 } else {
                     for promotion in promotion_pieces {
+                        let pawn_config = PawnMoveConfig {
+                            promotion: Some(promotion),
+                            en_passant: false,
+                            en_passant_square: None,
+                        };
                         moves.push(Move::create_pawn_move(
                             chess_board,
                             square,
                             square + direction + 1,
                             pawn,
                             target,
-                            Some(promotion),
-                            false,
-                            None,
+                            pawn_config,
                         ));
                     }
                 }
@@ -741,6 +754,11 @@ impl PieceList {
                 chess_board.set_piece_on_square(Piece::EmptySquare, square + 1); // Captured pawn
                 // If king would be in check, don't add to possible moves
                 if self.is_king_in_check(chess_board, color).is_empty() {
+                    let pawn_config = PawnMoveConfig {
+                        promotion: None,
+                        en_passant: true,
+                        en_passant_square: None,
+                    };
                     // Move don't let king in check so we add to the possible moves
                     moves.push(Move::create_pawn_move(
                         chess_board,
@@ -748,9 +766,7 @@ impl PieceList {
                         square + direction + 1,
                         pawn,
                         target,
-                        None,
-                        true,
-                        None,
+                        pawn_config,
                     ));
                 }
                 // Restore pawns on the board
@@ -761,27 +777,33 @@ impl PieceList {
             let target = chess_board.get_piece_on_square(square + direction - 1);
             if capture_left && target.is_opponent(color) {
                 if chess_board.square_rank(square + direction - 1) != promotion_rank {
+                    let pawn_config = PawnMoveConfig {
+                        promotion: None,
+                        en_passant: false,
+                        en_passant_square: None,
+                    };
                     moves.push(Move::create_pawn_move(
                         chess_board,
                         square,
                         square + direction - 1,
                         pawn,
                         target,
-                        None,
-                        false,
-                        None,
+                        pawn_config,
                     ));
                 } else {
                     for promotion in promotion_pieces {
+                        let pawn_config = PawnMoveConfig {
+                            promotion: Some(promotion),
+                            en_passant: false,
+                            en_passant_square: None,
+                        };
                         moves.push(Move::create_pawn_move(
                             chess_board,
                             square,
                             square + direction - 1,
                             pawn,
                             target,
-                            Some(promotion),
-                            false,
-                            None,
+                            pawn_config,
                         ));
                     }
                 }
@@ -795,6 +817,11 @@ impl PieceList {
                 chess_board.set_piece_on_square(Piece::EmptySquare, square - 1); // Captured pawn
                 // If king would be in check, don't add to possible moves
                 if self.is_king_in_check(chess_board, color).is_empty() {
+                    let pawn_config = PawnMoveConfig {
+                        promotion: None,
+                        en_passant: true,
+                        en_passant_square: None,
+                    };
                     // Move don't let king in check so we add to the possible moves
                     moves.push(Move::create_pawn_move(
                         chess_board,
@@ -802,9 +829,7 @@ impl PieceList {
                         square + direction - 1,
                         pawn,
                         target,
-                        None,
-                        true,
-                        None,
+                        pawn_config,
                     ));
                 }
 
@@ -815,39 +840,23 @@ impl PieceList {
 
             let target = chess_board.get_piece_on_square(square + 2 * direction);
             if move_forward
-                && (color == Color::White)
                 && (chess_board.square_rank(square) == double_push_rank)
+                && first_target.is_empty()
+                && target.is_empty()
             {
-                if first_target.is_empty() && target.is_empty() {
-                    moves.push(Move::create_pawn_move(
-                        chess_board,
-                        square,
-                        square + 2 * direction,
-                        pawn,
-                        target,
-                        None,
-                        false,
-                        Some(square + direction),
-                    ));
-                }
-            }
-
-            if move_forward
-                && (color == Color::Black)
-                && (chess_board.square_rank(square) == double_push_rank)
-            {
-                if first_target.is_empty() && target.is_empty() {
-                    moves.push(Move::create_pawn_move(
-                        chess_board,
-                        square,
-                        square + 2 * direction,
-                        pawn,
-                        target,
-                        None,
-                        false,
-                        Some(square + direction),
-                    ));
-                }
+                let pawn_config = PawnMoveConfig {
+                    promotion: None,
+                    en_passant: false,
+                    en_passant_square: Some(square + direction),
+                };
+                moves.push(Move::create_pawn_move(
+                    chess_board,
+                    square,
+                    square + 2 * direction,
+                    pawn,
+                    target,
+                    pawn_config,
+                ));
             }
         }
 
@@ -885,41 +894,39 @@ impl PieceList {
         let castling_rights = &chess_board.castling_rights;
 
         // Kingside castling
-        if (color == Color::White && castling_rights.white_kingside)
-            || (color == Color::Black && castling_rights.black_kingside)
+        if ((color == Color::White && castling_rights.white_kingside)
+            || (color == Color::Black && castling_rights.black_kingside))
+            && chess_board.can_castle_kingside(color, king_square, rook_kingside)
         {
-            if chess_board.can_castle_kingside(color, king_square, rook_kingside) {
-                let king_to = king_square + 2; // g1 or g8
-                let rook_to = king_square + 1; // f1 or f8
+            let king_to = king_square + 2; // g1 or g8
+            let rook_to = king_square + 1; // f1 or f8
 
-                moves.push(Move::create_castling_move(
-                    chess_board,
-                    king_square,
-                    king_to,
-                    king_piece,
-                    rook_kingside,
-                    rook_to,
-                ));
-            }
+            moves.push(Move::create_castling_move(
+                chess_board,
+                king_square,
+                king_to,
+                king_piece,
+                rook_kingside,
+                rook_to,
+            ));
         }
 
         // Queenside castling
-        if (color == Color::White && castling_rights.white_queenside)
-            || (color == Color::Black && castling_rights.black_queenside)
+        if ((color == Color::White && castling_rights.white_queenside)
+            || (color == Color::Black && castling_rights.black_queenside))
+            && chess_board.can_castle_queenside(color, king_square, rook_queenside)
         {
-            if chess_board.can_castle_queenside(color, king_square, rook_queenside) {
-                let king_to = king_square - 2; // c1 or c8
-                let rook_to = king_square - 1; // d1 or d8
+            let king_to = king_square - 2; // c1 or c8
+            let rook_to = king_square - 1; // d1 or d8
 
-                moves.push(Move::create_castling_move(
-                    chess_board,
-                    king_square,
-                    king_to,
-                    king_piece,
-                    rook_queenside,
-                    rook_to,
-                ));
-            }
+            moves.push(Move::create_castling_move(
+                chess_board,
+                king_square,
+                king_to,
+                king_piece,
+                rook_queenside,
+                rook_to,
+            ));
         }
 
         moves
@@ -1074,7 +1081,7 @@ impl PieceList {
         let mut board = vec!['.'; 64];
 
         // Helper function to place pieces
-        fn place_pieces(board: &mut Vec<char>, pieces: &Vec<i16>, symbol: char) {
+        fn place_pieces(board: &mut [char], pieces: &Vec<i16>, symbol: char) {
             for &square in pieces {
                 if square < 64 {
                     board[square as usize] = symbol;
@@ -1121,7 +1128,7 @@ impl PieceList {
         println!("\nPiece List Contents:");
         println!("========================================");
 
-        fn print_list(name: &str, list: &Vec<i16>) {
+        fn print_list(name: &str, list: &[i16]) {
             let squares: Vec<String> = list.iter().map(|&sq| format!("{}", sq)).collect();
             println!("{:20}: {}", name, squares.join(" "));
         }
@@ -1487,19 +1494,19 @@ impl PieceList {
     /// Square where the king is located, or `None` if not found
     fn get_king_square(&self, color: Color) -> Option<i16> {
         if color == Color::White {
-            if let Some(king_list) = self.get_list(Piece::WhiteKing) {
-                if let Some(king) = king_list.get(0) {
-                    return Some(*king);
-                }
+            if let Some(king_list) = self.get_list(Piece::WhiteKing)
+                && let Some(king) = king_list.first()
+            {
+                return Some(*king);
             }
-            return None;
+            None
         } else {
-            if let Some(king_list) = self.get_list(Piece::BlackKing) {
-                if let Some(king) = king_list.get(0) {
-                    return Some(*king);
-                }
+            if let Some(king_list) = self.get_list(Piece::BlackKing)
+                && let Some(king) = king_list.first()
+            {
+                return Some(*king);
             }
-            return None;
+            None
         }
     }
 

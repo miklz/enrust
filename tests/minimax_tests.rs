@@ -25,7 +25,7 @@ mod minimax_tests {
         let moves = game.generate_moves(Color::White);
         let best_move = best_move.unwrap();
         assert!(
-            moves.iter().any(|mv| *mv == best_move),
+            moves.contains(&best_move),
             "Best move should be one of the legal moves"
         );
 

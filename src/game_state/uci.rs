@@ -48,59 +48,59 @@ pub fn handle_go_command(game_state: &mut GameState, tokens: &mut SplitWhitespac
     while let Some(token) = tokens.next() {
         match token {
             "wtime" => {
-                if let Some(wtime_str) = tokens.next() {
-                    if let Ok(wtime) = wtime_str.parse::<u64>() {
-                        sc.wtime = Some(wtime);
-                    }
+                if let Some(wtime_str) = tokens.next()
+                    && let Ok(wtime) = wtime_str.parse::<u64>()
+                {
+                    sc.wtime = Some(wtime);
                 }
             }
             "btime" => {
-                if let Some(btime_str) = tokens.next() {
-                    if let Ok(btime) = btime_str.parse::<u64>() {
-                        sc.btime = Some(btime);
-                    }
+                if let Some(btime_str) = tokens.next()
+                    && let Ok(btime) = btime_str.parse::<u64>()
+                {
+                    sc.btime = Some(btime);
                 }
             }
             "winc" => {
-                if let Some(winc_str) = tokens.next() {
-                    if let Ok(winc) = winc_str.parse::<u64>() {
-                        sc.winc = Some(winc);
-                    }
+                if let Some(winc_str) = tokens.next()
+                    && let Ok(winc) = winc_str.parse::<u64>()
+                {
+                    sc.winc = Some(winc);
                 }
             }
             "binc" => {
-                if let Some(binc_str) = tokens.next() {
-                    if let Ok(binc) = binc_str.parse::<u64>() {
-                        sc.binc = Some(binc);
-                    }
+                if let Some(binc_str) = tokens.next()
+                    && let Ok(binc) = binc_str.parse::<u64>()
+                {
+                    sc.binc = Some(binc);
                 }
             }
             "movestogo" => {
-                if let Some(movestogo_str) = tokens.next() {
-                    if let Ok(movestogo) = movestogo_str.parse::<u64>() {
-                        sc.movestogo = Some(movestogo);
-                    }
+                if let Some(movestogo_str) = tokens.next()
+                    && let Ok(movestogo) = movestogo_str.parse::<u64>()
+                {
+                    sc.movestogo = Some(movestogo);
                 }
             }
             "depth" => {
-                if let Some(depth_str) = tokens.next() {
-                    if let Ok(depth) = depth_str.parse::<u64>() {
-                        sc.depth = Some(depth);
-                    }
+                if let Some(depth_str) = tokens.next()
+                    && let Ok(depth) = depth_str.parse::<u64>()
+                {
+                    sc.depth = Some(depth);
                 }
             }
             "nodes" => {
-                if let Some(nodes_str) = tokens.next() {
-                    if let Ok(nodes) = nodes_str.parse::<u64>() {
-                        sc.nodes = Some(nodes);
-                    }
+                if let Some(nodes_str) = tokens.next()
+                    && let Ok(nodes) = nodes_str.parse::<u64>()
+                {
+                    sc.nodes = Some(nodes);
                 }
             }
             "movetime" => {
-                if let Some(movetime_str) = tokens.next() {
-                    if let Ok(movetime) = movetime_str.parse::<u64>() {
-                        sc.movetime = Some(movetime);
-                    }
+                if let Some(movetime_str) = tokens.next()
+                    && let Ok(movetime) = movetime_str.parse::<u64>()
+                {
+                    sc.movetime = Some(movetime);
                 }
             }
             "infinite" => sc.infinite = true,
@@ -131,10 +131,10 @@ pub fn handle_go_command(game_state: &mut GameState, tokens: &mut SplitWhitespac
 
             // Not a standard UCI command, but a some debugging tools need this to test the engine
             "perft" => {
-                if let Some(depth_str) = tokens.next() {
-                    if let Ok(depth) = depth_str.parse::<u64>() {
-                        game_state.perft_debug(depth, true);
-                    }
+                if let Some(depth_str) = tokens.next()
+                    && let Ok(depth) = depth_str.parse::<u64>()
+                {
+                    game_state.perft_debug(depth, true);
                 }
                 return; // Early return for debugging command
             }

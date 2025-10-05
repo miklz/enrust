@@ -36,6 +36,20 @@ pub struct Move {
     pub previous_castling_rights: Option<CastlingRights>,
 }
 
+/// Configuration for pawn moves
+#[derive(Default)]
+pub struct PawnMoveConfig {
+    pub promotion: Option<Piece>,
+    pub en_passant: bool,
+    pub en_passant_square: Option<i16>,
+}
+
+impl PawnMoveConfig {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 impl Move {
     /// Creates a pawn move with pawn-specific metadata.
     ///
@@ -62,19 +76,17 @@ impl Move {
         to: i16,
         piece: Piece,
         captured: Piece,
-        promotion: Option<Piece>,
-        en_passant: bool,
-        en_passant_square: Option<i16>,
+        pawn_move_config: PawnMoveConfig,
     ) -> Self {
         Self {
             from,
             to,
             piece,
             captured_piece: captured,
-            promotion,
+            promotion: pawn_move_config.promotion,
             castling: None,
-            en_passant,
-            en_passant_square,
+            en_passant: pawn_move_config.en_passant,
+            en_passant_square: pawn_move_config.en_passant_square,
             previous_en_passant: chess_board.get_en_passant_target(),
             previous_castling_rights: Some(chess_board.castling_rights),
         }
@@ -269,17 +281,18 @@ impl Move {
         captured: Piece,
     ) -> bool {
         // En passant: pawn moving diagonally to empty square when en passant target is set
-        if piece.get_type() == PieceType::Pawn && captured == Piece::EmptySquare {
-            if let Some(ep_target) = chess_board.get_en_passant_target() {
-                // Check if this is an en passant capture
-                let expected_from = if piece.is_white() {
-                    ep_target - chess_board.board_width // White pawn was one rank below
-                } else {
-                    ep_target + chess_board.board_width // Black pawn was one rank above
-                };
+        if piece.get_type() == PieceType::Pawn
+            && captured == Piece::EmptySquare
+            && let Some(ep_target) = chess_board.get_en_passant_target()
+        {
+            // Check if this is an en passant capture
+            let expected_from = if piece.is_white() {
+                ep_target - chess_board.board_width // White pawn was one rank below
+            } else {
+                ep_target + chess_board.board_width // Black pawn was one rank above
+            };
 
-                return from == expected_from && to == ep_target;
-            }
+            return from == expected_from && to == ep_target;
         }
         false
     }

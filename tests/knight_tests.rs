@@ -27,7 +27,7 @@ mod knight_tests {
 
         let moves = game.generate_moves();
         // Knight should be able to jump over surrounding pawns
-        assert!(moves.len() > 0);
+        assert!(!moves.is_empty());
         assert!(moves.contains(&"c6a5".to_string()) || moves.contains(&"c6a7".to_string()));
     }
 

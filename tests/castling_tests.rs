@@ -20,7 +20,7 @@ mod castling_tests {
 
         // Should also have other moves (king moves, rook moves)
         assert!(
-            moves.len() >= 1,
+            !moves.is_empty(),
             "Expected at least 1 move, got {}",
             moves.len()
         );

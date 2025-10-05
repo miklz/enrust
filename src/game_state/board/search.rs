@@ -111,20 +111,18 @@ pub fn pure_minimax_search(
             return (best_score, best_move);
         }
 
-        game.make_move(&mv);
+        game.make_move(mv);
         let score = pure_minimax(game, depth - 1, side_to_move.opposite(), stop_flag.clone());
-        game.unmake_move(&mv);
+        game.unmake_move(mv);
 
         if side_to_move == Color::White {
             if score >= best_score {
                 best_score = score;
                 best_move = Some(mv.clone());
             }
-        } else {
-            if score <= best_score {
-                best_score = score;
-                best_move = Some(mv.clone());
-            }
+        } else if score <= best_score {
+            best_score = score;
+            best_move = Some(mv.clone());
         }
     }
 
@@ -166,14 +164,14 @@ fn pure_negamax(
             return score;
         }
 
-        game.make_move(&mv);
+        game.make_move(mv);
         score = score.max(-pure_negamax(
             game,
             depth - 1,
             side_to_move.opposite(),
             stop_flag.clone(),
         ));
-        game.unmake_move(&mv);
+        game.unmake_move(mv);
     }
 
     score
@@ -207,9 +205,9 @@ pub fn pure_negamax_search(
             return (best_score, best_move);
         }
 
-        game.make_move(&mv);
+        game.make_move(mv);
         let score = -pure_negamax(game, depth - 1, side_to_move.opposite(), stop_flag.clone());
-        game.unmake_move(&mv);
+        game.unmake_move(mv);
         if score >= best_score {
             best_move = Some(mv.clone());
             best_score = score;
@@ -217,7 +215,7 @@ pub fn pure_negamax_search(
     }
 
     let perspective = if side_to_move == Color::White { 1 } else { -1 };
-    best_score = best_score * perspective;
+    best_score *= perspective;
 
     // Return best move found, or none if no moves available
     (best_score, best_move)
@@ -372,12 +370,10 @@ pub fn minimax_alpha_beta_search(
                 best_move = Some(mv.clone());
                 alpha = alpha.max(score)
             }
-        } else {
-            if score <= best_score {
-                best_score = score;
-                best_move = Some(mv.clone());
-                beta = beta.min(score);
-            }
+        } else if score <= best_score {
+            best_score = score;
+            best_move = Some(mv.clone());
+            beta = beta.min(score);
         }
     }
 
