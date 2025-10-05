@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+
 use divan::{Bencher, black_box};
 use enrust::game_state::ChessBoard;
 use enrust::game_state::Color;
@@ -27,7 +30,8 @@ args = [
 fn bench_minimax(fen: &str) {
     let mut game = setup_game(fen);
 
-    let (score, _) = pure_minimax_search(&mut game, 4, Color::White);
+    let stop_flag = Arc::new(AtomicBool::new(false));
+    let (score, _) = pure_minimax_search(&mut game, 4, Color::White, stop_flag);
 
     black_box(score);
 }
@@ -43,7 +47,8 @@ args = [
 fn bench_negamax(fen: &str) {
     let mut game = setup_game(fen);
 
-    let (score, _) = pure_negamax_search(&mut game, 4, Color::White);
+    let stop_flag = Arc::new(AtomicBool::new(false));
+    let (score, _) = pure_negamax_search(&mut game, 4, Color::White, stop_flag);
 
     black_box(score);
 }
@@ -59,7 +64,8 @@ args = [
 fn bench_minimax_alpha_beta(fen: &str) {
     let mut game = setup_game(fen);
 
-    let (score, _) = minimax_alpha_beta_search(&mut game, 4, Color::White);
+    let stop_flag = Arc::new(AtomicBool::new(false));
+    let (score, _) = minimax_alpha_beta_search(&mut game, 4, Color::White, stop_flag);
 
     black_box(score);
 }

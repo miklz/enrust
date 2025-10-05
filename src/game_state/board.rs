@@ -5,6 +5,9 @@
 //! game states. The board uses a 12x10 mailbox representation with sentinel
 //! squares for efficient move generation and validation.
 
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+
 pub mod moves;
 pub mod piece;
 pub mod piece_list;
@@ -878,12 +881,13 @@ impl ChessBoard {
     /// # Returns
     ///
     /// `Some(Move)` if a move is found, `None` if no moves available
-    pub fn search(&mut self, side_to_move: Color) -> Option<Move> {
+    pub fn search(&mut self, side_to_move: Color, stop_flag: Arc<AtomicBool>) -> Option<Move> {
         // We clone the board so that the piece-list
         // can do and undo moves to check for legal moves
         let mut board_copy = self.clone();
 
-        let (_, best_move) = search::minimax_alpha_beta_search(&mut board_copy, 5, side_to_move);
+        let (_, best_move) =
+            search::minimax_alpha_beta_search(&mut board_copy, 6, side_to_move, stop_flag);
         best_move
     }
 

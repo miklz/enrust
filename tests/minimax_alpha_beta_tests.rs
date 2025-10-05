@@ -1,5 +1,8 @@
 #[cfg(test)]
 mod minimax_alpha_beta_tests {
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
+
     use enrust::game_state::ChessBoard;
     use enrust::game_state::Color;
     use enrust::game_state::GameState;
@@ -15,7 +18,8 @@ mod minimax_alpha_beta_tests {
     fn test_minimax_depth_1_initial_position() {
         let mut game = setup_test_game("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
-        let (score, best_move) = minimax_alpha_beta_search(&mut game, 1, Color::White);
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let (score, best_move) = minimax_alpha_beta_search(&mut game, 1, Color::White, stop_flag);
 
         // At depth 1, should find one of the 20 possible moves
         let moves = game.generate_moves(Color::White);
@@ -38,7 +42,8 @@ mod minimax_alpha_beta_tests {
         // White to move and checkmate black
         let mut game = setup_test_game("7R/8/8/8/8/1K6/8/1k6 w - - 0 1");
 
-        let (score, best_move) = minimax_alpha_beta_search(&mut game, 3, Color::White);
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let (score, best_move) = minimax_alpha_beta_search(&mut game, 3, Color::White, stop_flag);
 
         // Should find checkmate
         assert!(
@@ -59,7 +64,8 @@ mod minimax_alpha_beta_tests {
         // Black to move and checkmate white
         let mut game = setup_test_game("7r/8/8/8/8/1k6/8/1K6 b - - 0 1");
 
-        let (score, best_move) = minimax_alpha_beta_search(&mut game, 3, Color::Black);
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let (score, best_move) = minimax_alpha_beta_search(&mut game, 3, Color::Black, stop_flag);
 
         // Should find checkmate (negative score from black's perspective)
         assert!(
@@ -80,7 +86,8 @@ mod minimax_alpha_beta_tests {
         // Stalemate position - black to move, no legal moves but not in check
         let mut game = setup_test_game("k7/8/1K6/8/8/8/8/8 b - - 0 1");
 
-        let (score, _) = minimax_alpha_beta_search(&mut game, 1, Color::Black);
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let (score, _) = minimax_alpha_beta_search(&mut game, 1, Color::Black, stop_flag);
 
         // Should recognize stalemate (score = 0)
         assert_eq!(score, 0, "Should recognize stalemate, got score: {}", score);
@@ -91,7 +98,8 @@ mod minimax_alpha_beta_tests {
         // White can capture black queen with pawn
         let mut game = setup_test_game("k7/8/8/3q4/3Q4/8/8/K7 w - - 0 1");
 
-        let (score, best_move) = minimax_alpha_beta_search(&mut game, 2, Color::White);
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let (score, best_move) = minimax_alpha_beta_search(&mut game, 2, Color::White, stop_flag);
 
         // Should prefer capturing the queen (d4xd5)
         let expected_move = game.from_uci("d4d5").expect("Should create capture move");
@@ -116,7 +124,8 @@ mod minimax_alpha_beta_tests {
         // White pawn can promote to queen
         let mut game = setup_test_game("k7/3P4/8/8/8/8/8/K7 w - - 0 1");
 
-        let (score, best_move) = minimax_alpha_beta_search(&mut game, 2, Color::White);
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let (score, best_move) = minimax_alpha_beta_search(&mut game, 2, Color::White, stop_flag);
 
         // Should promote to queen (b7b8q)
         let promotion_move = game
@@ -143,7 +152,8 @@ mod minimax_alpha_beta_tests {
         // White can be checkmated next move if he doesn't prevent it
         let mut game = setup_test_game("k7/8/8/8/8/8/2r5/KR6 w - - 0 1");
 
-        let (score, best_move) = minimax_alpha_beta_search(&mut game, 2, Color::White);
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let (score, best_move) = minimax_alpha_beta_search(&mut game, 2, Color::White, stop_flag);
 
         // Should avoid the checkmate by moving king or blocking
         let best_move = best_move.unwrap();
@@ -163,10 +173,14 @@ mod minimax_alpha_beta_tests {
     fn test_minimax_depth_consistency() {
         let mut game = setup_test_game("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
+        let stop_flag = Arc::new(AtomicBool::new(false));
         // Test that deeper search gives better (or equal) results
-        let (score_depth_1, move_1) = minimax_alpha_beta_search(&mut game, 1, Color::White);
-        let (score_depth_2, move_2) = minimax_alpha_beta_search(&mut game, 2, Color::White);
-        let (score_depth_3, move_3) = minimax_alpha_beta_search(&mut game, 3, Color::White);
+        let (score_depth_1, move_1) =
+            minimax_alpha_beta_search(&mut game, 1, Color::White, stop_flag.clone());
+        let (score_depth_2, move_2) =
+            minimax_alpha_beta_search(&mut game, 2, Color::White, stop_flag.clone());
+        let (score_depth_3, move_3) =
+            minimax_alpha_beta_search(&mut game, 3, Color::White, stop_flag.clone());
 
         // Deeper search should find at least as good moves
         // Note: Sometimes different depths can find different equally good moves
@@ -197,10 +211,13 @@ mod minimax_alpha_beta_tests {
         // Symmetric position should evaluate to 0
         let mut game = setup_test_game("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
-        let (score_white, _) = minimax_alpha_beta_search(&mut game, 2, Color::White);
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let (score_white, _) =
+            minimax_alpha_beta_search(&mut game, 2, Color::White, stop_flag.clone());
 
         // Now from black's perspective (should be symmetric)
-        let (score_black, _) = minimax_alpha_beta_search(&mut game, 2, Color::Black);
+        let (score_black, _) =
+            minimax_alpha_beta_search(&mut game, 2, Color::Black, stop_flag.clone());
 
         // Scores should be approximately opposite (white positive, black negative)
         assert!(
@@ -216,7 +233,8 @@ mod minimax_alpha_beta_tests {
         // White has extra queen
         let mut game = setup_test_game("k7/8/8/8/8/8/1Q6/K7 w - - 0 1");
 
-        let (score, _) = minimax_alpha_beta_search(&mut game, 1, Color::White);
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let (score, _) = minimax_alpha_beta_search(&mut game, 1, Color::White, stop_flag);
 
         // Should show significant advantage (around +900 for queen)
         assert!(
@@ -230,8 +248,10 @@ mod minimax_alpha_beta_tests {
     fn test_minimax_always_returns_legal_move() {
         let mut game = setup_test_game("k7/8/8/8/8/8/8/K7 w - - 0 1"); // Only kings
 
+        let stop_flag = Arc::new(AtomicBool::new(false));
         for depth in 1..=3 {
-            let (score, best_move) = minimax_alpha_beta_search(&mut game, depth, Color::White);
+            let (score, best_move) =
+                minimax_alpha_beta_search(&mut game, depth, Color::White, stop_flag.clone());
 
             // Move should be legal
             let legal_moves = game.generate_moves(Color::White);
@@ -257,7 +277,8 @@ mod minimax_alpha_beta_tests {
         let fen = "1R1nk2r/p1Npb1pp/8/4Q3/q3P3/2B2N2/5PPP/5RK1 b - - 7 28";
         let mut game = setup_test_game(fen);
 
-        let (score, best_move) = minimax_alpha_beta_search(&mut game, 3, Color::Black);
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        let (score, best_move) = minimax_alpha_beta_search(&mut game, 3, Color::Black, stop_flag);
 
         assert!(
             score > 10000,

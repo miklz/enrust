@@ -149,5 +149,6 @@ pub fn handle_go_command(game_state: &mut GameState, tokens: &mut SplitWhitespac
     game_state.set_time_control(&sc);
 
     // Output the best move found by the search
-    println!("bestmove {}", game_state.search());
+    //println!("bestmove {}", game_state.search());
+    game_state.search();
 }

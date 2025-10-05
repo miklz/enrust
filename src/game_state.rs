@@ -5,6 +5,9 @@
 //! integration for chess engine communication.
 
 use std::io::{self, Write};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
 
 pub mod board;
 pub mod uci;
@@ -114,6 +117,8 @@ pub struct GameState {
     side_to_move: Color,
     /// Search configuration and time control settings
     search_control: Option<SearchConfiguration>,
+    /// Search interrupt
+    stop_flag: Arc<AtomicBool>,
     /// The chess board with current position
     board: ChessBoard,
 }
@@ -353,16 +358,32 @@ impl GameState {
     /// # Returns
     ///
     /// Best move in UCI format, or "0000" if no move found
-    pub fn search(&mut self) -> String {
+    pub fn search(&mut self) {
         // The pieces positions was already defined on the board and
         // the time control was set with the time requirements
         // needed to perform a search
         //let sc = self.search_control.as_ref().expect("No time control set");
 
-        match self.board.search(self.side_to_move) {
-            Some(mv) => self.board.move_to_uci(&mv),
-            None => "0000".to_string(),
-        }
+        let mut board_copy = self.board.clone();
+        let side_to_move = self.side_to_move;
+        self.stop_flag.store(false, Ordering::Release);
+        let stop_flag_clone = Arc::clone(&self.stop_flag);
+
+        thread::spawn(
+            move || match board_copy.search(side_to_move, stop_flag_clone) {
+                Some(mv) => {
+                    println!("bestmove {}", board_copy.move_to_uci(&mv));
+                }
+                None => {
+                    println!("bestmove 0000");
+                }
+            },
+        );
+    }
+
+    pub fn stop_search(&self) {
+        // Force the search thread to stop and return the best move found up to this point
+        self.stop_flag.store(true, Ordering::Release);
     }
 
     /// Performs a perft (performance test) for debugging move generation.
@@ -440,6 +461,7 @@ impl Default for GameState {
             ply_moves: 0,
             side_to_move: Color::White,
             search_control: None,
+            stop_flag: Arc::new(AtomicBool::new(false)),
             board: ChessBoard::default(),
         }
     }
@@ -537,6 +559,11 @@ pub fn uci_main() {
                     // Start search with parsed parameters
                     uci::handle_go_command(&mut game_state, &mut uci_cmd);
                 }
+
+                "stop" => {
+                    game_state.stop_search();
+                }
+
                 // This is not a uci command, is my way of printing the board
                 "print" => {
                     // Debug command to display current board state

@@ -1,5 +1,5 @@
-use std::time::Instant;
 use std::time::Duration;
+use std::time::Instant;
 
 use divan::Bencher;
 use enrust::game_state::GameState;
@@ -50,7 +50,6 @@ fn benchmark_perft_nps(params: (&str, u32, u64)) {
     let mut total_nodes = 0;
 
     for _run in 0..measured_runs {
-
         let start_time = Instant::now();
         let nodes = game.perft_debug(depth, false);
         let duration = start_time.elapsed();
@@ -64,6 +63,8 @@ fn benchmark_perft_nps(params: (&str, u32, u64)) {
     let avg_duration: Duration = total_time / measured_runs;
     let nps = total_nodes as f64 / avg_duration.as_secs_f64();
 
-    print!("\n   ├─  Depth {}, Nodes searched: {:.0}, Nodes/second: {:.0}\t\t\t\t",
-                depth, total_nodes, nps);
+    print!(
+        "\n   ├─  Depth {}, Nodes searched: {:.0}, Nodes/second: {:.0}\t\t\t\t",
+        depth, total_nodes, nps
+    );
 }

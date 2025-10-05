@@ -51,8 +51,7 @@
 //! println!("Available moves: {:?}", moves);
 //!
 //! // Search for best move
-//! let best_move = game_state.search();
-//! println!("Best move: {}", best_move);
+//! game_state.search();
 //! ```
 //!
 //! ### As a UCI Engine

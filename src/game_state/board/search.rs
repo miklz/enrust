@@ -2,6 +2,8 @@
 //!
 //! This module implements various chess search algorithms including minimax,
 //! negamax, alpha-beta pruning, and quiescence search for stable positions.
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::game_state::ChessBoard;
 use crate::game_state::Color;
@@ -22,7 +24,12 @@ use crate::game_state::Move;
 /// # Returns
 ///
 /// Evaluation score from the perspective of the side to move
-fn pure_minimax(game: &mut ChessBoard, depth: u64, side_to_move: Color) -> i64 {
+fn pure_minimax(
+    game: &mut ChessBoard,
+    depth: u64,
+    side_to_move: Color,
+    stop_flag: Arc<AtomicBool>,
+) -> i64 {
     if depth == 0 {
         return game.evaluate();
     }
@@ -35,8 +42,14 @@ fn pure_minimax(game: &mut ChessBoard, depth: u64, side_to_move: Color) -> i64 {
             let mut max_eval = i64::MIN;
 
             for mv in moves {
+                // Abruptly end the search if required
+                if stop_flag.load(Ordering::Acquire) {
+                    return max_eval;
+                }
+
                 game.make_move(&mv);
-                let eval = pure_minimax(game, depth - 1, side_to_move.opposite());
+                let eval =
+                    pure_minimax(game, depth - 1, side_to_move.opposite(), stop_flag.clone());
                 game.unmake_move(&mv);
 
                 max_eval = max_eval.max(eval);
@@ -49,8 +62,14 @@ fn pure_minimax(game: &mut ChessBoard, depth: u64, side_to_move: Color) -> i64 {
             let mut min_eval = i64::MAX;
 
             for mv in moves {
+                // Abruptly end the search if required
+                if stop_flag.load(Ordering::Acquire) {
+                    return min_eval;
+                }
+
                 game.make_move(&mv);
-                let eval = pure_minimax(game, depth - 1, side_to_move.opposite());
+                let eval =
+                    pure_minimax(game, depth - 1, side_to_move.opposite(), stop_flag.clone());
                 game.unmake_move(&mv);
 
                 min_eval = min_eval.min(eval);
@@ -76,6 +95,7 @@ pub fn pure_minimax_search(
     game: &mut ChessBoard,
     depth: u64,
     side_to_move: Color,
+    stop_flag: Arc<AtomicBool>,
 ) -> (i64, Option<Move>) {
     let mut best_score = if side_to_move == Color::White {
         i64::MIN
@@ -86,8 +106,13 @@ pub fn pure_minimax_search(
 
     let moves = game.generate_moves(side_to_move);
     for mv in &moves {
+        // Abruptly end the search if required
+        if stop_flag.load(Ordering::Acquire) {
+            return (best_score, best_move);
+        }
+
         game.make_move(&mv);
-        let score = pure_minimax(game, depth - 1, side_to_move.opposite());
+        let score = pure_minimax(game, depth - 1, side_to_move.opposite(), stop_flag.clone());
         game.unmake_move(&mv);
 
         if side_to_move == Color::White {
@@ -121,7 +146,12 @@ pub fn pure_minimax_search(
 /// # Returns
 ///
 /// Evaluation score from the perspective of the side to move
-fn pure_negamax(game: &mut ChessBoard, depth: i64, side_to_move: Color) -> i64 {
+fn pure_negamax(
+    game: &mut ChessBoard,
+    depth: i64,
+    side_to_move: Color,
+    stop_flag: Arc<AtomicBool>,
+) -> i64 {
     if depth == 0 {
         let perspective = if side_to_move == Color::White { 1 } else { -1 };
         return game.evaluate() * perspective;
@@ -131,8 +161,18 @@ fn pure_negamax(game: &mut ChessBoard, depth: i64, side_to_move: Color) -> i64 {
     let mut score = i64::MIN + 1; // +1 to avoid overflow when negated
 
     for mv in &moves {
+        // Abruptly end the search if required
+        if stop_flag.load(Ordering::Acquire) {
+            return score;
+        }
+
         game.make_move(&mv);
-        score = score.max(-pure_negamax(game, depth - 1, side_to_move.opposite()));
+        score = score.max(-pure_negamax(
+            game,
+            depth - 1,
+            side_to_move.opposite(),
+            stop_flag.clone(),
+        ));
         game.unmake_move(&mv);
     }
 
@@ -154,6 +194,7 @@ pub fn pure_negamax_search(
     game: &mut ChessBoard,
     depth: i64,
     side_to_move: Color,
+    stop_flag: Arc<AtomicBool>,
 ) -> (i64, Option<Move>) {
     let mut best_move = None;
     let mut best_score = i64::MIN;
@@ -161,8 +202,13 @@ pub fn pure_negamax_search(
     let moves = game.generate_moves(side_to_move);
 
     for mv in &moves {
+        // Abruptly end the search if required
+        if stop_flag.load(Ordering::Acquire) {
+            return (best_score, best_move);
+        }
+
         game.make_move(&mv);
-        let score = -pure_negamax(game, depth - 1, side_to_move.opposite());
+        let score = -pure_negamax(game, depth - 1, side_to_move.opposite(), stop_flag.clone());
         game.unmake_move(&mv);
         if score >= best_score {
             best_move = Some(mv.clone());
@@ -189,6 +235,7 @@ pub fn pure_negamax_search(
 /// * `alpha` - Alpha value for pruning (best value maximizer can guarantee)
 /// * `beta` - Beta value for pruning (best value minimizer can guarantee)
 /// * `side_to_move` - Color of the player to move
+/// * `stop_flag` - Search control to force the end of search at any time
 ///
 /// # Returns
 ///
@@ -199,6 +246,7 @@ fn minimax_alpha_beta(
     mut alpha: i64,
     mut beta: i64,
     side_to_move: Color,
+    stop_flag: Arc<AtomicBool>,
 ) -> i64 {
     // Terminal node check - reached maximum depth
     if depth == 0 {
@@ -211,8 +259,20 @@ fn minimax_alpha_beta(
         let mut max_eval = i64::MIN;
 
         for mv in moves {
+            // Abruptly end the search if required
+            if stop_flag.load(Ordering::Acquire) {
+                return max_eval;
+            }
+
             game.make_move(&mv);
-            let eval = minimax_alpha_beta(game, depth - 1, alpha, beta, side_to_move.opposite());
+            let eval = minimax_alpha_beta(
+                game,
+                depth - 1,
+                alpha,
+                beta,
+                side_to_move.opposite(),
+                stop_flag.clone(),
+            );
             game.unmake_move(&mv);
 
             max_eval = max_eval.max(eval);
@@ -229,8 +289,20 @@ fn minimax_alpha_beta(
         let mut min_eval = i64::MAX;
 
         for mv in moves {
+            // Abruptly end the search if required
+            if stop_flag.load(Ordering::Acquire) {
+                return min_eval;
+            }
+
             game.make_move(&mv);
-            let eval = minimax_alpha_beta(game, depth - 1, alpha, beta, side_to_move.opposite());
+            let eval = minimax_alpha_beta(
+                game,
+                depth - 1,
+                alpha,
+                beta,
+                side_to_move.opposite(),
+                stop_flag.clone(),
+            );
             game.unmake_move(&mv);
 
             min_eval = min_eval.min(eval);
@@ -263,6 +335,7 @@ pub fn minimax_alpha_beta_search(
     game: &mut ChessBoard,
     depth: u64,
     side_to_move: Color,
+    stop_flag: Arc<AtomicBool>,
 ) -> (i64, Option<Move>) {
     let mut best_score = if side_to_move == Color::White {
         i64::MIN
@@ -277,9 +350,20 @@ pub fn minimax_alpha_beta_search(
     let moves = game.generate_moves(side_to_move);
 
     for mv in moves {
+        // Abruptly end the search if required
+        if stop_flag.load(Ordering::Acquire) {
+            return (best_score, best_move);
+        }
+
         game.make_move(&mv);
-        let score =
-            minimax_alpha_beta(game, depth - 1, i64::MIN, i64::MAX, side_to_move.opposite());
+        let score = minimax_alpha_beta(
+            game,
+            depth - 1,
+            i64::MIN,
+            i64::MAX,
+            side_to_move.opposite(),
+            stop_flag.clone(),
+        );
         game.unmake_move(&mv);
 
         if side_to_move == Color::White {
