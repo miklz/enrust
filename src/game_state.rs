@@ -8,6 +8,7 @@ use std::io::{self, Write};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
+use std::time::Duration;
 
 pub mod board;
 pub mod uci;
@@ -84,13 +85,13 @@ impl SearchConfiguration {
     /// # Returns
     ///
     /// Recommended time in milliseconds, or `None` for infinite search
-    pub fn time_for_move(&self, side_to_move: Color) -> Option<u64> {
+    fn time_for_move(&self, side_to_move: Color) -> Option<Duration> {
         if self.infinite {
             return None;
         }
 
         if let Some(movetime) = self.movetime {
-            return Some(movetime);
+            return Some(Duration::from_millis(movetime));
         }
 
         let (time_left, increment) = match side_to_move {
@@ -102,7 +103,7 @@ impl SearchConfiguration {
         let moves_to_go = self.movestogo.unwrap_or(20) as f64;
         let allocated_time = (time_left as f64 / moves_to_go).min(time_left as f64 * 0.9) as u64;
 
-        Some(allocated_time + increment)
+        Some(Duration::from_millis(allocated_time + increment))
     }
 }
 
@@ -359,10 +360,9 @@ impl GameState {
     ///
     /// Best move in UCI format, or "0000" if no move found
     pub fn search(&mut self) {
-        // The pieces positions was already defined on the board and
-        // the time control was set with the time requirements
-        // needed to perform a search
-        //let sc = self.search_control.as_ref().expect("No time control set");
+        // The time parameters were set with the time requirements from the go command.
+        // This method will then, spawn a thread that will interrupt the search after a calculated time
+        self.time_manager();
 
         let mut board_copy = self.board.clone();
         let side_to_move = self.side_to_move;
@@ -384,6 +384,40 @@ impl GameState {
     pub fn stop_search(&self) {
         // Force the search thread to stop and return the best move found up to this point
         self.stop_flag.store(true, Ordering::Release);
+    }
+
+    /// Manages search time by spawning a timer thread that will interrupt the search
+    /// after the allocated time period has elapsed.
+    ///
+    /// This function calculates the appropriate time allocation for the current move
+    /// based on the game state and search configuration, then spawns a background
+    /// thread that will call the `stop_search` method when the time expires.
+    ///
+    /// # Arguments
+    ///
+    /// * `game_state` - Reference to the current game state containing side to move.
+    ///
+    /// # Behavior
+    ///
+    /// - Calculates time allocation using `time_for_move()` based on the current
+    ///   player's time remaining, increment, and moves until next time control
+    /// - If time allocation is determined (`Some(Duration)`), spawns a timer thread
+    /// - The timer thread sleeps for the allocated duration, then calls the
+    ///  `game_state.stop_search()`
+    /// - If no time allocation is calculated (`None`), no timer is started,
+    ///   allowing for infinite search (when `infinite` flag is set in configuration)
+    fn time_manager(&self) {
+        if let Some(search_control) = &self.search_control {
+            if let Some(time_to_think) = search_control.time_for_move(self.side_to_move) {
+                // Here we spawn a new thread that will interrupt the search
+                // after the calculated time period.
+                let stop_flag = self.stop_flag.clone();
+                thread::spawn(move || {
+                    thread::sleep(time_to_think);
+                    stop_flag.store(true, Ordering::Release);
+                });
+            }
+        }
     }
 
     /// Performs a perft (performance test) for debugging move generation.

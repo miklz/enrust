@@ -887,7 +887,7 @@ impl ChessBoard {
         let mut board_copy = self.clone();
 
         let (_, best_move) =
-            search::minimax_alpha_beta_search(&mut board_copy, 6, side_to_move, stop_flag);
+            search::minimax_alpha_beta_search(&mut board_copy, 5, side_to_move, stop_flag);
         best_move
     }
 
