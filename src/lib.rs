@@ -180,6 +180,9 @@
 //! - UCI protocol specification by Stefan Meyer-Kahlen
 
 pub mod game_state;
+use crate::game_state::GameState;
+
+use std::time::Instant;
 
 /// Starts the chess engine in UCI mode.
 ///
@@ -209,4 +212,18 @@ pub mod game_state;
 /// This is the main entry point for using EnRust as a UCI chess engine.
 pub fn start_engine() {
     game_state::uci_main();
+}
+
+pub fn run_benchmark() {
+    let mut game = GameState::default();
+    game.start_position();
+
+    let start_time = Instant::now();
+    let nodes = game.perft_debug(4, false);
+    let time_elapsed = start_time.elapsed();
+
+    // Calculate statistics
+    let nps = nodes as f64 / time_elapsed.as_secs_f64();
+
+    println!("{} nodes nps: {:.0}", nodes, nps);
 }
