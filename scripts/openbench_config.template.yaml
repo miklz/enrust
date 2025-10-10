@@ -1,0 +1,42 @@
+server:
+  base_url: "${OPENBENCH_URL}"
+  username: "${OPENBENCH_USER}"
+  password: "${OPENBENCH_PASS}"
+
+test:
+  dev_repo: "https://github.com/miklz/enrust"
+  dev_engine: "EnRust"
+  base_repo: "https://github.com/miklz/enrust"
+  base_engine: "EnRust"
+
+  dev_branch: "${DEV_BRANCH}"
+  dev_bench: "4075000"
+  dev_network: ""
+  dev_options: "Threads=1 Hash=32"
+  dev_time_control : "8.0+0.08"
+
+  base_branch: "${BASE_BRANCH}"
+  base_bench: "4075000"
+  base_network: ""
+  base_options: "Threads=1 Hash=32"
+  base_time_control: "8.0+0.08"
+
+  test_mode: "SPRT"
+  test_bounds: "[0.00, 10.00]"
+  test_confidence: "[0.05, 0.05]"
+  test_max_games: "N/A"
+
+  book_name: "Pohl.epd"
+  upload_pgns: "False"
+  priority: "0"
+  throughput: "1000"
+  workload_size: "32"
+  syzygy_wdl: "DISABLED"
+
+  syzygy_adj: "DISABLED"
+  win_adj: "None"
+  draw_adj: "None"
+  scale_method: "BASE"
+  scale_nps: "4075000"
+
+  submit: "Create+Engine+Test"
