@@ -10,7 +10,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  build-and-test:
 
     runs-on: ubuntu-latest
 
@@ -37,3 +37,28 @@ jobs:
 
     - name: Run benchmarks
       run: cargo bench --verbose
+
+  openbench-test:
+    needs: build-and-test
+    runs-on: self-hosted
+    container:
+      image: python:3.12-slim
+      options: --add-host=host.docker.internal:host-gateway
+    env:
+      OPENBENCH_URL: ${{ vars.OPENBENCH_URL}}
+      OPENBENCH_USER: ${{ secrets.OPENBENCH_USER }}
+      OPENBENCH_PASS: ${{ secrets.OPENBENCH_PASS }}
+
+      BASE_BRANCH: ${{ github.event.pull_request.base.ref || 'main' }}
+      DEV_BRANCH: ${{ github.head_ref || github.ref_name }}
+      COMMIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install python dependencies
+        run: pip install -r scripts/requirements.txt
+      - name: Install envsubst tool
+        run: apt-get update && apt-get install -y gettext-base
+      - name: Prepare config
+        run: envsubst < scripts/openbench_config.template.yaml > openbench_config.yaml
+      - name: Create OpenBench test
+        run: python scripts/openbench_create_test.py --config openbench_config.yaml --commit "${COMMIT_SHA}"
