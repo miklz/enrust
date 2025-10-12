@@ -39,6 +39,8 @@ jobs:
       run: cargo bench --verbose
 
   openbench-test:
+    # 👇 Only run this job if triggered by a PR
+    if: ${{ github.event_name == 'pull_request' }}
     needs: build-and-test
     runs-on: self-hosted
     container:
@@ -56,9 +58,22 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install python dependencies
         run: pip install -r scripts/requirements.txt
-      - name: Install envsubst tool
-        run: apt-get update && apt-get install -y gettext-base
+      - name: Install envsubst and curl
+        run: apt-get update && apt-get install -y gettext-base curl
       - name: Prepare config
         run: envsubst < scripts/openbench_config.template.yaml > openbench_config.yaml
       - name: Create OpenBench test
-        run: python scripts/openbench_create_test.py --config openbench_config.yaml --commit "${COMMIT_SHA}"
+        run: |
+          python scripts/openbench_create_test.py --config openbench_config.yaml --commit "${COMMIT_SHA}"
+      - name: Set PR status to pending
+        run: |
+          curl -X POST \
+          -H "Authorization: Bearer ${{ secrets.PAT_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/repos/${{ github.repository }}/statuses/${{ github.sha }} \
+          -d '{
+            "state": "pending",
+            "target_url": "${{ vars.OPENBENCH_URL}}/test/${{ env.TEST_ID }}",
+            "description": "Waiting for OpenBench test completion",
+            "context": "OpenBench"
+          }'

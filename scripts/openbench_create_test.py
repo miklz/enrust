@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import yaml
 import argparse
 import re
@@ -10,7 +11,7 @@ from bs4 import BeautifulSoup
 
 def login(session, base_url, username, password):
     print("🔐 Logging in...")
-    login_page = session.get(f"{base_url}/login/")
+    session.get(f"{base_url}/login/")
     csrftoken = session.cookies.get("csrftoken")
 
     if not csrftoken:
@@ -23,7 +24,7 @@ def login(session, base_url, username, password):
     }
 
     headers = {"Referer": f"{base_url}/login/"}
-    response = session.post(
+    session.post(
         f"{base_url}/login/",
         data=login_data,
         headers=headers,
@@ -117,8 +118,11 @@ def main():
         create_test(session, base_url, test_data)
         new_test_id = fetch_new_test(session, base_url, before)
         print(f"[OpenBench] Created test {new_test_id} for commit {args.commit}")
+        # Set test ID in GitHub environment so that it can be used later by the workflow
+        with open(os.environ["GITHUB_ENV"], "a") as f:
+            print(f"TEST_ID={new_test_id}", file=f)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
 
