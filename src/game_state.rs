@@ -213,8 +213,6 @@ impl GameState {
             return false;
         }
 
-        self.board.set_board(&board_8x8);
-
         // Side to move
         if let Some(side_to_move) = fen.next() {
             match side_to_move {
@@ -299,6 +297,8 @@ impl GameState {
         }
 
         self.ply_moves = total_moves;
+
+        self.board.set_board(&board_8x8, self.side_to_move);
 
         true
     }
