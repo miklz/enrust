@@ -64,9 +64,7 @@ impl Color {
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Piece {
-    /// Empty square (no piece present)
-    EmptySquare = 0,
-    WhitePawn,
+    WhitePawn = 0,
     WhiteKnight,
     WhiteBishop,
     WhiteRook,
@@ -78,6 +76,8 @@ pub enum Piece {
     BlackRook,
     BlackQueen,
     BlackKing,
+    /// Empty square (no piece present)
+    EmptySquare = 254,
     /// Sentinel square (off-board guard)
     SentinelSquare = 255,
 }
@@ -89,8 +89,8 @@ impl Piece {
     /// Panics if called on an empty or sentinel square.
     pub fn get_color(self) -> Color {
         match self as u8 {
-            1..=6 => Color::White,
-            7..=12 => Color::Black,
+            0..=5 => Color::White,
+            6..=12 => Color::Black,
             _ => panic!("Invalid piece"),
         }
     }
@@ -145,7 +145,7 @@ impl Piece {
 
     /// Returns `true` if the piece is one of the 12 valid chess pieces.
     pub fn is_valid_piece(self) -> bool {
-        (self as u8) >= 1 && (self as u8) <= 12
+        (self as u8) < 12
     }
 
     /// Returns `true` if the piece is white.
