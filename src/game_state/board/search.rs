@@ -246,23 +246,52 @@ fn minimax_alpha_beta(
     side_to_move: Color,
     stop_flag: Arc<AtomicBool>,
 ) -> i64 {
+    /*
+    // Check if we have seen this position already
+    if let Some(position) = game.transposition_table.probe(game.hash) {
+        if position.depth <= depth {
+            match position.node_type {
+                NodeType::Exact => {
+                    return position.score;
+                },
+                NodeType::UpperBound => {
+                    if position.score >= beta {
+                        return position.score;
+                    }
+                },
+                NodeType::LowerBound => {
+                    if position.score <= alpha {
+                        return position.score;
+                    }
+                }
+            }
+        }
+
+        // If we found this position at a shallower depth than the current search
+        // we only consider what was the best move evaluated in this position.
+        // The position saved was not sufficient to cause a prune
+        // But we can use the best move found to speed up the search
+        // TODO
+    }
+        */
+
     // Terminal node check - reached maximum depth
     if depth == 0 {
         return game.evaluate();
     }
 
     let moves = game.generate_moves(side_to_move);
+    //let mut best_move = None;
 
     if side_to_move == Color::White {
-        let mut max_eval = i64::MIN;
-
         for mv in moves {
             // Abruptly end the search if required
             if stop_flag.load(Ordering::Acquire) {
-                return max_eval;
+                return alpha;
             }
 
             game.make_move(&mv);
+            //let position_hash = game.hash;
             let eval = minimax_alpha_beta(
                 game,
                 depth - 1,
@@ -273,26 +302,29 @@ fn minimax_alpha_beta(
             );
             game.unmake_move(&mv);
 
-            max_eval = max_eval.max(eval);
-            alpha = alpha.max(eval);
+            if eval > alpha {
+                //best_move = Some(mv);
+                alpha = eval;
+            }
 
             // Beta cutoff - Black won't allow this line
             if beta <= alpha {
+                //game.transposition_table.save_position(position_hash, depth, eval, NodeType::UpperBound, &best_move);
                 break;
             }
+            //game.transposition_table.save_position(position_hash, depth, eval, NodeType::Exact, &best_move);
         }
 
-        max_eval
+        alpha
     } else {
-        let mut min_eval = i64::MAX;
-
         for mv in moves {
             // Abruptly end the search if required
             if stop_flag.load(Ordering::Acquire) {
-                return min_eval;
+                return beta;
             }
 
             game.make_move(&mv);
+            //let position_hash = game.hash;
             let eval = minimax_alpha_beta(
                 game,
                 depth - 1,
@@ -303,16 +335,20 @@ fn minimax_alpha_beta(
             );
             game.unmake_move(&mv);
 
-            min_eval = min_eval.min(eval);
-            beta = beta.min(eval);
+            if eval < beta {
+                //best_move = Some(mv);
+                beta = eval;
+            }
 
             // Alpha cutoff - White won't allow this line
             if beta <= alpha {
+                //game.transposition_table.save_position(position_hash, depth, eval, NodeType::LowerBound, &best_move);
                 break;
             }
+            //game.transposition_table.save_position(position_hash, depth, eval, NodeType::Exact, &best_move);
         }
 
-        min_eval
+        beta
     }
 }
 
