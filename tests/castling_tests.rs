@@ -1,13 +1,23 @@
-use enrust::game_state::GameState;
-
 #[cfg(test)]
 mod castling_tests {
-    use super::*;
+    use std::sync::{Arc, RwLock};
+
+    use enrust::game_state::GameState;
+    use enrust::game_state::{TranspositionTable, Zobrist};
+
+    fn setup_game_with_fen(fen: &str) -> GameState {
+        let zobrist_keys = Arc::new(Zobrist::new());
+
+        let shared_transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+
+        let mut game = GameState::new(zobrist_keys, shared_transposition_table);
+        game.set_fen_position(fen);
+        game
+    }
 
     #[test]
     fn test_white_kingside_castling() {
-        let mut game = GameState::default();
-        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+        let mut game = setup_game_with_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
 
         let moves = game.generate_moves();
 
@@ -28,8 +38,7 @@ mod castling_tests {
 
     #[test]
     fn test_white_queenside_castling() {
-        let mut game = GameState::default();
-        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+        let mut game = setup_game_with_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
 
         let moves = game.generate_moves();
 
@@ -43,8 +52,7 @@ mod castling_tests {
 
     #[test]
     fn test_black_kingside_castling() {
-        let mut game = GameState::default();
-        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1");
+        let mut game = setup_game_with_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1");
 
         let moves = game.generate_moves();
 
@@ -58,8 +66,7 @@ mod castling_tests {
 
     #[test]
     fn test_black_queenside_castling() {
-        let mut game = GameState::default();
-        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1");
+        let mut game = setup_game_with_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1");
 
         let moves = game.generate_moves();
 
@@ -73,9 +80,8 @@ mod castling_tests {
 
     #[test]
     fn test_castling_with_pieces_in_between() {
-        let mut game = GameState::default();
         // Bishop blocking the kingside castling
-        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3KB1R w KQkq - 0 1");
+        let mut game = setup_game_with_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3KB1R w KQkq - 0 1");
 
         let moves = game.generate_moves();
 
@@ -96,8 +102,7 @@ mod castling_tests {
 
     #[test]
     fn test_castling_rights_after_king_move() {
-        let mut game = GameState::default();
-        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+        let mut game = setup_game_with_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
 
         // Make king move
         game.make_move("e1e2");
@@ -120,8 +125,7 @@ mod castling_tests {
 
     #[test]
     fn test_castling_rights_after_rook_move() {
-        let mut game = GameState::default();
-        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+        let mut game = setup_game_with_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
 
         // Move kingside rook
         game.make_move("h1h2");
@@ -146,9 +150,8 @@ mod castling_tests {
 
     #[test]
     fn test_castling_through_check() {
-        let mut game = GameState::default();
         // Black queen attacking f1 square (kingside castling path)
-        game.set_fen_position("r3k2r/pppppppp/8/8/5q2/8/PPPPP1PP/R3K2R w KQkq - 0 1");
+        let mut game = setup_game_with_fen("r3k2r/pppppppp/8/8/5q2/8/PPPPP1PP/R3K2R w KQkq - 0 1");
 
         let moves = game.generate_moves();
 
@@ -162,9 +165,9 @@ mod castling_tests {
 
     #[test]
     fn test_castling_out_of_check() {
-        let mut game = GameState::default();
         // Black queen giving check
-        game.set_fen_position("r3k2r/pppppppp/8/8/5P2/6q1/PPPPP1PP/R3K2R b KQkq f3 0 1");
+        let mut game =
+            setup_game_with_fen("r3k2r/pppppppp/8/8/5P2/6q1/PPPPP1PP/R3K2R b KQkq f3 0 1");
 
         let moves = game.generate_moves();
 
@@ -183,9 +186,8 @@ mod castling_tests {
 
     #[test]
     fn test_no_castling_rights() {
-        let mut game = GameState::default();
         // Position without castling rights
-        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w - - 0 1");
+        let mut game = setup_game_with_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w - - 0 1");
 
         let moves = game.generate_moves();
 

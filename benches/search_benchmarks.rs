@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, RwLock};
 
 use divan::black_box;
 use enrust::game_state::ChessBoard;
@@ -8,13 +8,17 @@ use enrust::game_state::GameState;
 use enrust::game_state::board::search::{
     minimax_alpha_beta_search, pure_minimax_search, pure_negamax_search,
 };
+use enrust::game_state::{TranspositionTable, Zobrist};
 
 fn main() {
     divan::main();
 }
 
 fn setup_game(fen: &str) -> ChessBoard {
-    let mut game = GameState::default();
+    let zobrist_keys = Arc::new(Zobrist::new());
+    let transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+
+    let mut game = GameState::new(zobrist_keys, transposition_table);
     assert!(game.set_fen_position(fen), "Failed to set FEN: {}", fen);
     game.get_chess_board().clone()
 }
