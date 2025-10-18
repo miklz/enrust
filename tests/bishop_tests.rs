@@ -1,11 +1,23 @@
 #[cfg(test)]
 mod bishop_tests {
+    use std::sync::{Arc, RwLock};
+
     use enrust::game_state::GameState;
+    use enrust::game_state::{TranspositionTable, Zobrist};
+
+    fn setup_game_with_fen(fen: &str) -> GameState {
+        let zobrist_keys = Arc::new(Zobrist::new());
+
+        let transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+
+        let mut game = GameState::new(zobrist_keys, transposition_table);
+        game.set_fen_position(fen);
+        game
+    }
 
     #[test]
     fn test_bishop_moves_center() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/3B4/8/8/8/8 w - - 0 1");
+        let mut game = setup_game_with_fen("8/8/8/3B4/8/8/8/8 w - - 0 1");
 
         let moves = game.generate_moves();
         assert_eq!(moves.len(), 13); // Bishop in center has 13 moves
@@ -13,8 +25,7 @@ mod bishop_tests {
 
     #[test]
     fn test_bishop_diagonal_captures() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/1p6/8/3B4/8/8/6p1/8 w - - 0 1");
+        let mut game = setup_game_with_fen("8/1p6/8/3B4/8/8/6p1/8 w - - 0 1");
 
         let moves = game.generate_moves();
 
@@ -25,8 +36,7 @@ mod bishop_tests {
 
     #[test]
     fn test_bishop_color_bound() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/3B4/8/8/8/8 w - - 0 1");
+        let mut game = setup_game_with_fen("8/8/8/3B4/8/8/8/8 w - - 0 1");
 
         let moves = game.generate_moves();
         // Bishop should only move on light squares from d5

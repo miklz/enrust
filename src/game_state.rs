@@ -5,8 +5,8 @@
 //! integration for chess engine communication.
 
 use std::io::{self, Write};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
 
@@ -16,6 +16,7 @@ pub use board::CastlingRights;
 pub use board::ChessBoard;
 pub use board::moves::Move;
 pub use board::piece::{Color, Piece};
+pub use board::transposition_table::{TranspositionTable, Zobrist};
 
 /// Configuration for search parameters and time control.
 ///
@@ -486,17 +487,18 @@ impl GameState {
     pub fn get_chess_board(&self) -> &ChessBoard {
         &self.board
     }
-}
 
-impl Default for GameState {
-    /// Creates a default game state with standard starting position.
-    fn default() -> Self {
+    /// Creates a default game state passing the zobrist keys and transposition table structure to be used
+    pub fn new(
+        zobrist_keys: Arc<Zobrist>,
+        transposition_table: Arc<RwLock<TranspositionTable>>,
+    ) -> Self {
         GameState {
             ply_moves: 0,
             side_to_move: Color::White,
             search_control: None,
             stop_flag: Arc::new(AtomicBool::new(false)),
-            board: ChessBoard::default(),
+            board: ChessBoard::new(zobrist_keys, transposition_table),
         }
     }
 }
@@ -528,7 +530,15 @@ impl Default for GameState {
 /// 7. Engine responds with `bestmove` when search completes
 /// 8. Process repeats until `quit` command
 pub fn uci_main() {
-    let mut game_state = GameState::default();
+    // 1. Create the zobrist keys once.
+    // Wrap it in Arc<> to enable shared read access
+    let zobrist_keys = Arc::new(Zobrist::new());
+
+    // 2. Create the transposition table once
+    //    Wrap it in Arc<RwLock<...>> to enable shared, mutable access.
+    let shared_transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+
+    let mut game_state = GameState::new(zobrist_keys, shared_transposition_table);
 
     // Main UCI protocol loop
     loop {

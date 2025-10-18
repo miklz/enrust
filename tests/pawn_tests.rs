@@ -1,13 +1,23 @@
-use enrust::game_state::GameState;
-
 #[cfg(test)]
 mod pawn_tests {
-    use super::*;
+    use std::sync::{Arc, RwLock};
+
+    use enrust::game_state::GameState;
+    use enrust::game_state::{TranspositionTable, Zobrist};
+
+    fn setup_game_with_fen(fen: &str) -> GameState {
+        let zobrist_keys = Arc::new(Zobrist::new());
+
+        let shared_transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+
+        let mut game = GameState::new(zobrist_keys, shared_transposition_table);
+        game.set_fen_position(fen);
+        game
+    }
 
     #[test]
     fn test_pawn_single_push() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/8/8/4P3/8/8 w - - 0 1");
+        let mut game = setup_game_with_fen("8/8/8/8/8/4P3/8/8 w - - 0 1");
         /*
             12x10 Chess Board:
             ==============================
@@ -35,8 +45,7 @@ mod pawn_tests {
 
     #[test]
     fn test_pawn_double_push_from_start() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/8/8/8/4P3/8 w - - 0 1");
+        let mut game = setup_game_with_fen("8/8/8/8/8/8/4P3/8 w - - 0 1");
         /*
             12x10 Chess Board:
             ==============================
@@ -68,12 +77,24 @@ mod pawn_tests {
 
 #[cfg(test)]
 mod promotion_tests {
-    use super::*;
+    use std::sync::{Arc, RwLock};
+
+    use enrust::game_state::GameState;
+    use enrust::game_state::{TranspositionTable, Zobrist};
+
+    fn setup_game_with_fen(fen: &str) -> GameState {
+        let zobrist_keys = Arc::new(Zobrist::new());
+
+        let shared_transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+
+        let mut game = GameState::new(zobrist_keys, shared_transposition_table);
+        game.set_fen_position(fen);
+        game
+    }
 
     #[test]
     fn test_pawn_promotion_options() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/4P3/8/8/8/8/8/8 w - - 0 1");
+        let mut game = setup_game_with_fen("8/4P3/8/8/8/8/8/8 w - - 0 1");
         /*
             12x10 Chess Board:
             ==============================
@@ -106,8 +127,7 @@ mod promotion_tests {
 
     #[test]
     fn test_pawn_promotion_with_capture() {
-        let mut game = GameState::default();
-        game.set_fen_position("3n4/4P3/8/8/8/8/8/8 w - - 0 1");
+        let mut game = setup_game_with_fen("3n4/4P3/8/8/8/8/8/8 w - - 0 1");
         /*
             12x10 Chess Board:
             ==============================
@@ -149,8 +169,7 @@ mod promotion_tests {
 
     #[test]
     fn test_no_promotion_before_seventh_rank() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/4P3/8/8/8/8/8 w - - 0 1");
+        let mut game = setup_game_with_fen("8/8/4P3/8/8/8/8/8 w - - 0 1");
         /*
             12x10 Chess Board:
             ==============================
@@ -180,12 +199,24 @@ mod promotion_tests {
 
 #[cfg(test)]
 mod blocked_pawn_tests {
-    use super::*;
+    use std::sync::{Arc, RwLock};
+
+    use enrust::game_state::GameState;
+    use enrust::game_state::{TranspositionTable, Zobrist};
+
+    fn setup_game_with_fen(fen: &str) -> GameState {
+        let zobrist_keys = Arc::new(Zobrist::new());
+
+        let shared_transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+
+        let mut game = GameState::new(zobrist_keys, shared_transposition_table);
+        game.set_fen_position(fen);
+        game
+    }
 
     #[test]
     fn test_pawn_blocked_by_friendly() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/8/4P3/4P3/8/8 w - - 0 1");
+        let mut game = setup_game_with_fen("8/8/8/8/4P3/4P3/8/8 w - - 0 1");
         /*
             12x10 Chess Board:
             ==============================
@@ -213,8 +244,7 @@ mod blocked_pawn_tests {
 
     #[test]
     fn test_pawn_blocked_by_opponent() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/4p3/4P3/8/8/8 w - - 0 1");
+        let mut game = setup_game_with_fen("8/8/8/4p3/4P3/8/8/8 w - - 0 1");
         /*
             12x10 Chess Board:
             ==============================
@@ -243,12 +273,24 @@ mod blocked_pawn_tests {
 
 #[cfg(test)]
 mod en_passant_tests {
-    use super::*;
+    use std::sync::{Arc, RwLock};
+
+    use enrust::game_state::GameState;
+    use enrust::game_state::{TranspositionTable, Zobrist};
+
+    fn setup_game_with_fen(fen: &str) -> GameState {
+        let zobrist_keys = Arc::new(Zobrist::new());
+
+        let shared_transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+
+        let mut game = GameState::new(zobrist_keys, shared_transposition_table);
+        game.set_fen_position(fen);
+        game
+    }
 
     #[test]
     fn test_en_passant_capture() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/3pP3/8/8/8/8 w - d6 0 1");
+        let mut game = setup_game_with_fen("8/8/8/3pP3/8/8/8/8 w - d6 0 1");
         /*
             12x10 Chess Board:
             ==============================
@@ -279,8 +321,7 @@ mod en_passant_tests {
 
     #[test]
     fn test_en_passant_not_available() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/3pP3/8/8/8/8 w - - 0 1");
+        let mut game = setup_game_with_fen("8/8/8/3pP3/8/8/8/8 w - - 0 1");
         /*
             12x10 Chess Board:
             ==============================
@@ -309,8 +350,7 @@ mod en_passant_tests {
 
     #[test]
     fn test_en_passant_wrong_square() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/3pP3/8/8/8/8 w - e6 0 1");
+        let mut game = setup_game_with_fen("8/8/8/3pP3/8/8/8/8 w - e6 0 1");
         /*
             12x10 Chess Board:
             ==============================
@@ -340,12 +380,24 @@ mod en_passant_tests {
 
 #[cfg(test)]
 mod edge_case_tests {
-    use super::*;
+    use std::sync::{Arc, RwLock};
+
+    use enrust::game_state::GameState;
+    use enrust::game_state::{TranspositionTable, Zobrist};
+
+    fn setup_game_with_fen(fen: &str) -> GameState {
+        let zobrist_keys = Arc::new(Zobrist::new());
+
+        let shared_transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+
+        let mut game = GameState::new(zobrist_keys, shared_transposition_table);
+        game.set_fen_position(fen);
+        game
+    }
 
     #[test]
     fn test_pawn_on_edge_files() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/8/8/8/P7/8 w - - 0 1");
+        let mut game = setup_game_with_fen("8/8/8/8/8/8/P7/8 w - - 0 1");
         /*
             12x10 Chess Board:
             ==============================
@@ -374,8 +426,7 @@ mod edge_case_tests {
 
     #[test]
     fn test_pawn_cannot_move_backwards() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/8/8/4p3/8/8 b - - 0 1");
+        let mut game = setup_game_with_fen("8/8/8/8/8/4p3/8/8 b - - 0 1");
         /*
             12x10 Chess Board:
             ==============================
