@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::game_state::ChessBoard;
 use crate::game_state::Color;
 use crate::game_state::Move;
+use crate::game_state::board::transposition_table::NodeType;
 
 /// Pure minimax algorithm without optimization techniques.
 ///
@@ -246,44 +247,47 @@ fn minimax_alpha_beta(
     side_to_move: Color,
     stop_flag: Arc<AtomicBool>,
 ) -> i64 {
-    /*
-    // Check if we have seen this position already
-    if let Some(position) = game.transposition_table.probe(game.hash) {
-        if position.depth <= depth {
+    let mut best_move = None;
+
+    // Limit the scope of the reader lock
+    {
+        // Get access to the transposition table
+        let transposition_table = game.transposition_table.read().unwrap();
+        // Check if we have seen this position already
+        if let Some(position) = transposition_table.probe(game.hash)
+            && position.depth >= depth
+        {
             match position.node_type {
-                NodeType::Exact => {
-                    return position.score;
-                },
+                NodeType::Exact => return position.score,
                 NodeType::UpperBound => {
-                    if position.score >= beta {
-                        return position.score;
+                    if position.score <= beta {
+                        beta = position.score;
                     }
-                },
+                }
                 NodeType::LowerBound => {
-                    if position.score <= alpha {
-                        return position.score;
+                    if position.score >= alpha {
+                        alpha = position.score;
                     }
                 }
             }
-        }
+            if alpha >= beta {
+                return position.score;
+            }
 
-        // If we found this position at a shallower depth than the current search
-        // we only consider what was the best move evaluated in this position.
-        // The position saved was not sufficient to cause a prune
-        // But we can use the best move found to speed up the search
-        // TODO
+            // We can start the search with the previous best move found
+            best_move = position.best_move.clone()
+        }
     }
-        */
 
     // Terminal node check - reached maximum depth
     if depth == 0 {
         return game.evaluate();
     }
 
+    let mut node_type = NodeType::Exact;
     let moves = game.generate_moves(side_to_move);
-    //let mut best_move = None;
 
-    if side_to_move == Color::White {
+    let final_score = if side_to_move == Color::White {
         for mv in moves {
             // Abruptly end the search if required
             if stop_flag.load(Ordering::Acquire) {
@@ -291,7 +295,6 @@ fn minimax_alpha_beta(
             }
 
             game.make_move(&mv);
-            //let position_hash = game.hash;
             let eval = minimax_alpha_beta(
                 game,
                 depth - 1,
@@ -303,16 +306,15 @@ fn minimax_alpha_beta(
             game.unmake_move(&mv);
 
             if eval > alpha {
-                //best_move = Some(mv);
+                best_move = Some(mv);
                 alpha = eval;
             }
 
             // Beta cutoff - Black won't allow this line
             if beta <= alpha {
-                //game.transposition_table.save_position(position_hash, depth, eval, NodeType::UpperBound, &best_move);
+                node_type = NodeType::UpperBound;
                 break;
             }
-            //game.transposition_table.save_position(position_hash, depth, eval, NodeType::Exact, &best_move);
         }
 
         alpha
@@ -324,7 +326,6 @@ fn minimax_alpha_beta(
             }
 
             game.make_move(&mv);
-            //let position_hash = game.hash;
             let eval = minimax_alpha_beta(
                 game,
                 depth - 1,
@@ -336,20 +337,34 @@ fn minimax_alpha_beta(
             game.unmake_move(&mv);
 
             if eval < beta {
-                //best_move = Some(mv);
+                best_move = Some(mv);
                 beta = eval;
             }
 
             // Alpha cutoff - White won't allow this line
             if beta <= alpha {
-                //game.transposition_table.save_position(position_hash, depth, eval, NodeType::LowerBound, &best_move);
+                node_type = NodeType::LowerBound;
                 break;
             }
-            //game.transposition_table.save_position(position_hash, depth, eval, NodeType::Exact, &best_move);
         }
 
         beta
+    };
+
+    // Limit the scope of the write lock
+    {
+        let mut transposition_table_write = game.transposition_table.write().unwrap();
+
+        transposition_table_write.save_position(
+            game.hash,
+            depth,
+            final_score,
+            node_type,
+            &best_move,
+        );
     }
+
+    final_score
 }
 
 /// Performs a complete alpha-beta search and returns the best move.
