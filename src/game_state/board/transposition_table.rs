@@ -95,7 +95,9 @@ impl TranspositionTable {
     pub fn probe(&self, hash: u64) -> Option<&TranspositionEntry> {
         let index = (hash % self.size as u64) as usize;
 
-        if let Some(entry) = &self.entries[index] && entry.hash == hash {
+        if let Some(entry) = &self.entries[index]
+            && entry.hash == hash
+        {
             return Some(entry);
         }
 
