@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod pawn_tests {
-    use std::sync::{Arc, RwLock};
+    use std::sync::Arc;
 
     use enrust::game_state::GameState;
     use enrust::game_state::{TranspositionTable, Zobrist};
@@ -8,7 +8,7 @@ mod pawn_tests {
     fn setup_game_with_fen(fen: &str) -> GameState {
         let zobrist_keys = Arc::new(Zobrist::new());
 
-        let shared_transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+        let shared_transposition_table = Arc::new(TranspositionTable::new(256));
 
         let mut game = GameState::new(zobrist_keys, shared_transposition_table);
         game.set_fen_position(fen);
@@ -77,7 +77,7 @@ mod pawn_tests {
 
 #[cfg(test)]
 mod promotion_tests {
-    use std::sync::{Arc, RwLock};
+    use std::sync::Arc;
 
     use enrust::game_state::GameState;
     use enrust::game_state::{TranspositionTable, Zobrist};
@@ -85,7 +85,7 @@ mod promotion_tests {
     fn setup_game_with_fen(fen: &str) -> GameState {
         let zobrist_keys = Arc::new(Zobrist::new());
 
-        let shared_transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+        let shared_transposition_table = Arc::new(TranspositionTable::new(256));
 
         let mut game = GameState::new(zobrist_keys, shared_transposition_table);
         game.set_fen_position(fen);
@@ -199,7 +199,7 @@ mod promotion_tests {
 
 #[cfg(test)]
 mod blocked_pawn_tests {
-    use std::sync::{Arc, RwLock};
+    use std::sync::Arc;
 
     use enrust::game_state::GameState;
     use enrust::game_state::{TranspositionTable, Zobrist};
@@ -207,7 +207,7 @@ mod blocked_pawn_tests {
     fn setup_game_with_fen(fen: &str) -> GameState {
         let zobrist_keys = Arc::new(Zobrist::new());
 
-        let shared_transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+        let shared_transposition_table = Arc::new(TranspositionTable::new(256));
 
         let mut game = GameState::new(zobrist_keys, shared_transposition_table);
         game.set_fen_position(fen);
@@ -273,7 +273,7 @@ mod blocked_pawn_tests {
 
 #[cfg(test)]
 mod en_passant_tests {
-    use std::sync::{Arc, RwLock};
+    use std::sync::Arc;
 
     use enrust::game_state::GameState;
     use enrust::game_state::{TranspositionTable, Zobrist};
@@ -281,7 +281,7 @@ mod en_passant_tests {
     fn setup_game_with_fen(fen: &str) -> GameState {
         let zobrist_keys = Arc::new(Zobrist::new());
 
-        let shared_transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+        let shared_transposition_table = Arc::new(TranspositionTable::new(256));
 
         let mut game = GameState::new(zobrist_keys, shared_transposition_table);
         game.set_fen_position(fen);
@@ -380,7 +380,7 @@ mod en_passant_tests {
 
 #[cfg(test)]
 mod edge_case_tests {
-    use std::sync::{Arc, RwLock};
+    use std::sync::Arc;
 
     use enrust::game_state::GameState;
     use enrust::game_state::{TranspositionTable, Zobrist};
@@ -388,7 +388,7 @@ mod edge_case_tests {
     fn setup_game_with_fen(fen: &str) -> GameState {
         let zobrist_keys = Arc::new(Zobrist::new());
 
-        let shared_transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+        let shared_transposition_table = Arc::new(TranspositionTable::new(256));
 
         let mut game = GameState::new(zobrist_keys, shared_transposition_table);
         game.set_fen_position(fen);

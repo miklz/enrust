@@ -1259,9 +1259,9 @@ impl PieceList {
     /// # Returns
     ///
     /// Number of pieces, or `None` if the piece type is invalid
-    pub fn get_number_of_pieces(&self, piece: Piece) -> Option<i64> {
+    pub fn get_number_of_pieces(&self, piece: Piece) -> Option<i16> {
         if let Some(piece_list) = self.get_list(piece) {
-            return Some(piece_list.len() as i64);
+            return Some(piece_list.len() as i16);
         }
         None
     }
@@ -1747,7 +1747,7 @@ impl Default for PieceList {
 
 #[cfg(test)]
 mod is_square_attacked_tests {
-    use std::sync::{Arc, RwLock};
+    use std::sync::Arc;
 
     use super::*;
     use crate::game_state::GameState;
@@ -1756,7 +1756,7 @@ mod is_square_attacked_tests {
     fn setup_game_with_fen(fen: &str) -> GameState {
         let zobrist_keys = Arc::new(Zobrist::new());
 
-        let shared_transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+        let shared_transposition_table = Arc::new(TranspositionTable::new(256));
 
         let mut game = GameState::new(zobrist_keys, shared_transposition_table);
         game.set_fen_position(fen);
