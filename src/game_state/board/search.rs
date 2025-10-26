@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::game_state::ChessBoard;
 use crate::game_state::Color;
 use crate::game_state::Move;
-use crate::game_state::board::transposition_table::NodeType;
+use crate::game_state::board::transposition_table::{NodeType, TranspositionTableData};
 
 /// Pure minimax algorithm without optimization techniques.
 ///
@@ -27,10 +27,10 @@ use crate::game_state::board::transposition_table::NodeType;
 /// Evaluation score from the perspective of the side to move
 fn pure_minimax(
     game: &mut ChessBoard,
-    depth: u64,
+    depth: u8,
     side_to_move: Color,
     stop_flag: Arc<AtomicBool>,
-) -> i64 {
+) -> i16 {
     if depth == 0 {
         return game.evaluate();
     }
@@ -40,7 +40,7 @@ fn pure_minimax(
     match side_to_move {
         // Maximizer (White)
         Color::White => {
-            let mut max_eval = i64::MIN;
+            let mut max_eval = i16::MIN;
 
             for mv in moves {
                 // Abruptly end the search if required
@@ -60,7 +60,7 @@ fn pure_minimax(
         }
         // Minimizer (Black)
         Color::Black => {
-            let mut min_eval = i64::MAX;
+            let mut min_eval = i16::MAX;
 
             for mv in moves {
                 // Abruptly end the search if required
@@ -94,14 +94,14 @@ fn pure_minimax(
 /// Tuple containing the best evaluation score and the best move found
 pub fn pure_minimax_search(
     game: &mut ChessBoard,
-    depth: u64,
+    depth: u8,
     side_to_move: Color,
     stop_flag: Arc<AtomicBool>,
-) -> (i64, Option<Move>) {
+) -> (i16, Option<Move>) {
     let mut best_score = if side_to_move == Color::White {
-        i64::MIN
+        i16::MIN
     } else {
-        i64::MAX
+        i16::MAX
     };
     let mut best_move = None;
 
@@ -147,17 +147,17 @@ pub fn pure_minimax_search(
 /// Evaluation score from the perspective of the side to move
 fn pure_negamax(
     game: &mut ChessBoard,
-    depth: i64,
+    depth: u8,
     side_to_move: Color,
     stop_flag: Arc<AtomicBool>,
-) -> i64 {
+) -> i16 {
     if depth == 0 {
         let perspective = if side_to_move == Color::White { 1 } else { -1 };
         return game.evaluate() * perspective;
     }
 
     let moves = game.generate_moves(side_to_move);
-    let mut score = i64::MIN + 1; // +1 to avoid overflow when negated
+    let mut score = i16::MIN + 1; // +1 to avoid overflow when negated
 
     for mv in &moves {
         // Abruptly end the search if required
@@ -191,12 +191,12 @@ fn pure_negamax(
 /// Tuple containing the best evaluation score and the best move found
 pub fn pure_negamax_search(
     game: &mut ChessBoard,
-    depth: i64,
+    depth: u8,
     side_to_move: Color,
     stop_flag: Arc<AtomicBool>,
-) -> (i64, Option<Move>) {
+) -> (i16, Option<Move>) {
     let mut best_move = None;
-    let mut best_score = i64::MIN;
+    let mut best_score = i16::MIN;
 
     let moves = game.generate_moves(side_to_move);
 
@@ -241,20 +241,20 @@ pub fn pure_negamax_search(
 /// Evaluation score from the perspective of the side to move
 fn minimax_alpha_beta(
     game: &mut ChessBoard,
-    depth: u64,
-    mut alpha: i64,
-    mut beta: i64,
+    depth: u8,
+    mut alpha: i16,
+    mut beta: i16,
     side_to_move: Color,
     stop_flag: Arc<AtomicBool>,
-) -> i64 {
+) -> i16 {
     let mut best_move = None;
 
-    // Limit the scope of the reader lock
+    // Limit scope of transposition table borrow
     {
         // Get access to the transposition table
-        let transposition_table = game.transposition_table.read().unwrap();
+        let transposition_table = &game.transposition_table;
         // Check if we have seen this position already
-        if let Some(position) = transposition_table.probe(game.hash)
+        if let Some(position) = transposition_table.retrieve_position(game.hash)
             && position.depth >= depth
         {
             match position.node_type {
@@ -275,7 +275,7 @@ fn minimax_alpha_beta(
             }
 
             // We can start the search with the previous best move found
-            best_move = position.best_move.clone()
+            best_move = Move::decode(position.best_move, game);
         }
     }
 
@@ -351,18 +351,18 @@ fn minimax_alpha_beta(
         beta
     };
 
-    // Limit the scope of the write lock
-    {
-        let mut transposition_table_write = game.transposition_table.write().unwrap();
-
-        transposition_table_write.save_position(
-            game.hash,
+    let encoded_move = if best_move.is_some() {best_move.unwrap().encode(game)} else {0};
+    let transposition_table = &game.transposition_table;
+    transposition_table.save_position(
+        game.hash,
+        &TranspositionTableData {
             depth,
-            final_score,
+            score: final_score,
             node_type,
-            &best_move,
-        );
-    }
+            best_move: encoded_move,
+            current_age: 0,
+        }
+    );
 
     final_score
 }
@@ -382,19 +382,19 @@ fn minimax_alpha_beta(
 /// Tuple containing the best evaluation score and the best move found
 pub fn minimax_alpha_beta_search(
     game: &mut ChessBoard,
-    depth: u64,
+    depth: u8,
     side_to_move: Color,
     stop_flag: Arc<AtomicBool>,
-) -> (i64, Option<Move>) {
+) -> (i16, Option<Move>) {
     let mut best_score = if side_to_move == Color::White {
-        i64::MIN
+        i16::MIN
     } else {
-        i64::MAX
+        i16::MAX
     };
     let mut best_move = None;
 
-    let mut alpha = i64::MIN;
-    let mut beta = i64::MAX;
+    let mut alpha = i16::MIN;
+    let mut beta = i16::MAX;
 
     let moves = game.generate_moves(side_to_move);
 
@@ -408,8 +408,8 @@ pub fn minimax_alpha_beta_search(
         let score = minimax_alpha_beta(
             game,
             depth - 1,
-            i64::MIN,
-            i64::MAX,
+            i16::MIN,
+            i16::MAX,
             side_to_move.opposite(),
             stop_flag.clone(),
         );
@@ -449,10 +449,10 @@ pub fn minimax_alpha_beta_search(
 /// Stabilized evaluation score after considering captures
 pub fn quiescence(
     chess_board: &mut ChessBoard,
-    mut alpha: i64,
-    beta: i64,
+    mut alpha: i16,
+    beta: i16,
     side_to_move: Color,
-) -> i64 {
+) -> i16 {
     // Evaluate the current (possibly noisy) position
     let stand_pat = chess_board.evaluate();
 

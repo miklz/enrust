@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use divan::Bencher;
 use enrust::game_state::{GameState, TranspositionTable, Zobrist};
@@ -17,7 +17,7 @@ fn main() {
 )]
 fn setup_position(bencher: Bencher, fen: &str) {
     let zobrist_keys = Arc::new(Zobrist::new());
-    let transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+    let transposition_table = Arc::new(TranspositionTable::new(256));
 
     let mut game = GameState::new(zobrist_keys, transposition_table);
 
@@ -38,7 +38,7 @@ fn setup_position(bencher: Bencher, fen: &str) {
 )]
 fn generate_moves(bencher: Bencher, fen: &str) {
     let zobrist_keys = Arc::new(Zobrist::new());
-    let transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+    let transposition_table = Arc::new(TranspositionTable::new(256));
 
     let mut game = GameState::new(zobrist_keys, transposition_table);
     game.set_fen_position(fen);
@@ -51,7 +51,7 @@ fn generate_moves(bencher: Bencher, fen: &str) {
 #[divan::bench]
 fn make_unmake_move(bencher: Bencher) {
     let zobrist_keys = Arc::new(Zobrist::new());
-    let transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+    let transposition_table = Arc::new(TranspositionTable::new(256));
 
     let mut game = GameState::new(zobrist_keys, transposition_table);
     game.set_fen_position("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 b - - 0 1");

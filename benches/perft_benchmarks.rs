@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -14,7 +14,7 @@ fn main() {
 )]
 fn bench_perft_different_depths(bencher: Bencher, depth: u64) {
     let zobrist_keys = Arc::new(Zobrist::new());
-    let transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+    let transposition_table = Arc::new(TranspositionTable::new(256));
 
     let mut game = GameState::new(zobrist_keys, transposition_table);
     game.set_fen_position("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
@@ -33,7 +33,7 @@ fn bench_perft_multiple_positions(bencher: Bencher, params: (&str, u64)) {
     let (fen, depth) = params;
 
     let zobrist_keys = Arc::new(Zobrist::new());
-    let transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+    let transposition_table = Arc::new(TranspositionTable::new(256));
 
     let mut game = GameState::new(zobrist_keys, transposition_table);
 
@@ -54,7 +54,7 @@ fn benchmark_perft_nps(params: (&str, u32, u64)) {
     let (fen, measured_runs, depth) = params;
 
     let zobrist_keys = Arc::new(Zobrist::new());
-    let transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+    let transposition_table = Arc::new(TranspositionTable::new(256));
 
     let mut game = GameState::new(zobrist_keys, transposition_table);
     game.set_fen_position(fen);

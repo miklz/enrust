@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod bishop_tests {
-    use std::sync::{Arc, RwLock};
+    use std::sync::Arc;
 
     use enrust::game_state::GameState;
     use enrust::game_state::{TranspositionTable, Zobrist};
@@ -8,7 +8,7 @@ mod bishop_tests {
     fn setup_game_with_fen(fen: &str) -> GameState {
         let zobrist_keys = Arc::new(Zobrist::new());
 
-        let transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+        let transposition_table = Arc::new(TranspositionTable::new(256));
 
         let mut game = GameState::new(zobrist_keys, transposition_table);
         game.set_fen_position(fen);
