@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod negamax_tests {
     use std::sync::atomic::AtomicBool;
-    use std::sync::{Arc, RwLock};
+    use std::sync::Arc;
 
     use enrust::game_state::ChessBoard;
     use enrust::game_state::Color;
@@ -12,7 +12,7 @@ mod negamax_tests {
     fn setup_test_game(fen: &str) -> ChessBoard {
         let zobrist_keys = Arc::new(Zobrist::new());
 
-        let shared_transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+        let shared_transposition_table = Arc::new(TranspositionTable::new(256));
 
         let mut game = GameState::new(zobrist_keys, shared_transposition_table);
         game.set_fen_position(fen);

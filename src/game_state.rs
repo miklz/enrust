@@ -6,7 +6,7 @@
 
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -491,7 +491,7 @@ impl GameState {
     /// Creates a default game state passing the zobrist keys and transposition table structure to be used
     pub fn new(
         zobrist_keys: Arc<Zobrist>,
-        transposition_table: Arc<RwLock<TranspositionTable>>,
+        transposition_table: Arc<TranspositionTable>,
     ) -> Self {
         GameState {
             ply_moves: 0,
@@ -536,7 +536,7 @@ pub fn uci_main() {
 
     // 2. Create the transposition table once
     //    Wrap it in Arc<RwLock<...>> to enable shared, mutable access.
-    let shared_transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+    let shared_transposition_table = Arc::new(TranspositionTable::new(256));
 
     let mut game_state = GameState::new(zobrist_keys, shared_transposition_table);
 

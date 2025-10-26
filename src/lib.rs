@@ -35,12 +35,12 @@
 //! You can use the engine programmatically:
 //!
 //! ```rust
-//! use std::sync::{Arc, RwLock};
+//! use std::sync::Arc;
 //! use enrust::game_state::{GameState, Color, SearchConfiguration, Zobrist, TranspositionTable};
 //!
 //! let zobrist_keys = Arc::new(Zobrist::new());
 //!
-//! let shared_transposition_table = Arc::new(RwLock::new(TranspositionTable::new(256)));
+//! let shared_transposition_table = Arc::new(TranspositionTable::new(256));
 //!
 //! let mut game_state = GameState::new(zobrist_keys, shared_transposition_table);
 //! game_state.start_position();
@@ -183,7 +183,7 @@
 //! - Inspired by classic chess engine architectures
 //! - Uses the SmallVec crate for efficient small vector storage
 //! - UCI protocol specification by Stefan Meyer-Kahlen
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 pub mod game_state;
 use crate::game_state::{GameState, TranspositionTable, Zobrist};
@@ -224,7 +224,7 @@ pub fn run_benchmark() {
     let zobrist_keys = Arc::new(Zobrist::new());
 
     // Table is not used in this benchmark so we initialize with 0 MB
-    let shared_transposition_table = Arc::new(RwLock::new(TranspositionTable::new(0)));
+    let shared_transposition_table = Arc::new(TranspositionTable::new(0));
 
     let mut game = GameState::new(zobrist_keys, shared_transposition_table);
     game.start_position();
