@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod negamax_tests {
-    use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
 
     use enrust::game_state::ChessBoard;
     use enrust::game_state::Color;

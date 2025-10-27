@@ -346,7 +346,12 @@ impl Move {
         Some(rank_idx * 8 + file_idx)
     }
 
-    fn get_move_from_to_promotion(chess_board: &ChessBoard, from: i16, to: i16, promotion: Option<Piece>) -> Option<Self> {
+    fn get_move_from_to_promotion(
+        chess_board: &ChessBoard,
+        from: i16,
+        to: i16,
+        promotion: Option<Piece>,
+    ) -> Option<Self> {
         let moving_piece = chess_board.get_piece_on_square(from);
 
         // Get captured piece
@@ -390,7 +395,6 @@ impl Move {
             previous_en_passant: chess_board.get_en_passant_target(),
             previous_castling_rights: Some(chess_board.castling_rights),
         })
-
     }
 
     /// Parses a UCI algebraic notation string into a Move struct.
@@ -505,11 +509,11 @@ impl Move {
 
         if let Some(promotion) = self.promotion {
             let promoted_piece = match promotion.get_type() {
-                PieceType::Queen => {0b0001},
-                PieceType::Rook => {0b0010},
-                PieceType::Bishop => {0b0100},
-                PieceType::Knight => {0b1000},
-                _ => {0},
+                PieceType::Queen => 0b0001,
+                PieceType::Rook => 0b0010,
+                PieceType::Bishop => 0b0100,
+                PieceType::Knight => 0b1000,
+                _ => 0,
             };
 
             encoded_move |= promoted_piece << 12;
@@ -519,11 +523,12 @@ impl Move {
     }
 
     pub fn decode(encoded_move: u16, chess_board: &ChessBoard) -> Option<Move> {
-        let from = (encoded_move & 0b0000_0000_0011_1111) as i16;
-        let to = (encoded_move & 0b0000_1111_1100_0000) as i16;
-        let promoted_piece = (encoded_move & 0b1111_0000_0000_0000) as u8;
+        let from_8x8 = (encoded_move & 0b11_1111) as i16;
+        let to_8x8 = ((encoded_move >> 6) & 0b011_1111) as i16;
+        let promoted_piece = ((encoded_move >> 12) & 0b1111) as u8;
 
         // Get the moving piece from the board
+        let from = chess_board.map_inner_to_outer_board(from_8x8);
         let moving_piece = chess_board.get_piece_on_square(from);
         if moving_piece == Piece::EmptySquare {
             return None;
@@ -542,6 +547,7 @@ impl Move {
             (_, _) => None,
         };
 
+        let to = chess_board.map_inner_to_outer_board(to_8x8);
         Self::get_move_from_to_promotion(chess_board, from, to, promotion)
     }
 }
