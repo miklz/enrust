@@ -56,11 +56,11 @@ impl Default for Zobrist {
 // 42-49: age (u8)
 // 50-63: unused (14 bits) - can be used for extended info
 pub struct TranspositionTableData {
-    pub score: i16,             // Evaluation score
-    pub depth: u8,              // Search depth this entry was computed at
-    pub node_type: NodeType,    // Exact, LowerBound, UpperBound
-    pub best_move: u16,         // Best move found in compact form (uci characters)
-    pub current_age: u8,        // For replacement schemes
+    pub score: i16,          // Evaluation score
+    pub depth: u8,           // Search depth this entry was computed at
+    pub node_type: NodeType, // Exact, LowerBound, UpperBound
+    pub best_move: u16,      // Best move found in compact form (uci characters)
+    pub age: u8,             // For replacement schemes
 }
 
 pub struct TranspositionEntry {
@@ -69,13 +69,12 @@ pub struct TranspositionEntry {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum NodeType {
     Exact,      // Score is exact evaluation
     LowerBound, // Score is at least this good (alpha)
     UpperBound, // Score is at most this good (beta)
 }
-
 
 impl TryFrom<u8> for NodeType {
     type Error = (); // You can define a custom error type here
@@ -110,7 +109,7 @@ impl TranspositionEntry {
     }
 
     fn best_move(data: u64) -> u16 {
-        ((data >> 26) & 0xFF) as u16
+        ((data >> 26) & 0xFFFF) as u16
     }
 
     fn age(data: u64) -> u8 {
@@ -130,7 +129,7 @@ impl TranspositionEntry {
     }
 
     fn set_data(&self, data: u64) {
-        self.hash_xor_data.store(data, Ordering::Release);
+        self.data.store(data, Ordering::Release);
     }
 
     fn new() -> Self {
@@ -141,8 +140,7 @@ impl TranspositionEntry {
     }
 
     fn is_empty(&self) -> bool {
-        self.data.load(Ordering::Relaxed) == 0 &&
-        self.hash_xor_data.load(Ordering::Relaxed) == 0
+        self.data.load(Ordering::Relaxed) == 0 && self.hash_xor_data.load(Ordering::Relaxed) == 0
     }
 }
 
@@ -173,7 +171,7 @@ impl TranspositionTable {
         self.size = new_size;
     }
 
-    fn probe(&self, hash: u64) -> Option<&TranspositionEntry> {
+    fn probe(&self, hash: u64) -> Option<u64> {
         let index = (hash % self.size as u64) as usize;
 
         if !&self.entries[index].is_empty() {
@@ -181,7 +179,7 @@ impl TranspositionTable {
             let entry_xor = entry.get_hash_xor_data();
             let entry_data = entry.get_data();
             if (entry_xor ^ entry_data) == hash {
-                return Some(&self.entries[index]);
+                return Some(entry_data);
             }
         }
 
@@ -190,6 +188,7 @@ impl TranspositionTable {
 
     fn store(&self, hash: u64, data: u64) {
         let index = (hash % self.size as u64) as usize;
+        let hash_xor_data = hash ^ data;
 
         // Replacement scheme: always replace if:
         // 1. Empty slot
@@ -199,27 +198,26 @@ impl TranspositionTable {
             let existing = &self.entries[index];
             // Get atomic values
             let existing_xor = existing.get_hash_xor_data();
-            let entry_xor = hash ^ data;
 
-            if existing_xor == entry_xor {
+            if existing_xor == hash_xor_data {
                 let existing_data = existing.get_data();
                 // Same position - replace if deeper search or same depth but newer
                 if TranspositionEntry::depth(data) > TranspositionEntry::depth(existing_data)
                     || (TranspositionEntry::depth(data) == TranspositionEntry::depth(existing_data)
-                    && TranspositionEntry::age(data) >= TranspositionEntry::age(existing_data))
+                        && TranspositionEntry::age(data) >= TranspositionEntry::age(existing_data))
                 {
-                    self.entries[index].set_hash_xor_data(hash);
+                    self.entries[index].set_hash_xor_data(hash_xor_data);
                     self.entries[index].set_data(data);
                 }
             } else {
                 // Hash collision - use replacement policy
                 if self.should_replace(existing, data) {
-                    self.entries[index].set_hash_xor_data(hash);
+                    self.entries[index].set_hash_xor_data(hash_xor_data);
                     self.entries[index].set_data(data);
                 }
             }
         } else {
-            self.entries[index].set_hash_xor_data(hash);
+            self.entries[index].set_hash_xor_data(hash_xor_data);
             self.entries[index].set_data(data);
         }
     }
@@ -228,12 +226,14 @@ impl TranspositionTable {
         let existing_data_entry = existing.get_data();
         // Prefer entries from current search (age)
         if TranspositionEntry::age(new_data) != TranspositionEntry::age(existing_data_entry) {
-            return TranspositionEntry::age(new_data) == TranspositionEntry::age(existing_data_entry);
+            return TranspositionEntry::age(new_data)
+                == TranspositionEntry::age(existing_data_entry);
         }
 
         // Prefer deeper searches
         if TranspositionEntry::depth(new_data) != TranspositionEntry::depth(existing_data_entry) {
-            return TranspositionEntry::depth(new_data) > TranspositionEntry::depth(existing_data_entry);
+            return TranspositionEntry::depth(new_data)
+                > TranspositionEntry::depth(existing_data_entry);
         }
 
         // As last resort, prefer exact scores over bounds
@@ -247,7 +247,7 @@ impl TranspositionTable {
 
     /*
     fn new_search(&mut self) {
-        self.current_age = self.current_age.wrapping_add(1);
+        self.age = self.age.wrapping_add(1);
     }
     */
 
@@ -255,24 +255,23 @@ impl TranspositionTable {
         let mut data_u64 = 0;
 
         // Pack Entry into 64 bits
-        data_u64 |= transposition_data.score as u64;
+        data_u64 |= transposition_data.score as u16 as u64;
         data_u64 |= (transposition_data.depth as u64) << 16;
         data_u64 |= (transposition_data.node_type as u64) << 24;
         data_u64 |= (transposition_data.best_move as u64) << 26;
-        data_u64 |= (transposition_data.current_age as u64) << 58;
+        data_u64 |= (transposition_data.age as u64) << 42;
 
         self.store(hash, data_u64);
     }
 
     pub fn retrieve_position(&self, hash: u64) -> Option<TranspositionTableData> {
-        if let Some(entry) = self.probe(hash) {
-            let data = entry.get_data();
+        if let Some(data) = self.probe(hash) {
             let saved_position = TranspositionTableData {
                 score: TranspositionEntry::score(data),
                 depth: TranspositionEntry::depth(data),
                 node_type: TranspositionEntry::node_type(data),
                 best_move: TranspositionEntry::best_move(data),
-                current_age: TranspositionEntry::age(data),
+                age: TranspositionEntry::age(data),
             };
 
             return Some(saved_position);

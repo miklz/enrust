@@ -351,7 +351,11 @@ fn minimax_alpha_beta(
         beta
     };
 
-    let encoded_move = if best_move.is_some() {best_move.unwrap().encode(game)} else {0};
+    let encoded_move = if best_move.is_some() {
+        best_move.unwrap().encode(game)
+    } else {
+        0
+    };
     let transposition_table = &game.transposition_table;
     transposition_table.save_position(
         game.hash,
@@ -360,8 +364,8 @@ fn minimax_alpha_beta(
             score: final_score,
             node_type,
             best_move: encoded_move,
-            current_age: 0,
-        }
+            age: 0,
+        },
     );
 
     final_score

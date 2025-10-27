@@ -5,8 +5,8 @@
 //! game states. The board uses a 12x10 mailbox representation with sentinel
 //! squares for efficient move generation and validation.
 
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 pub mod moves;
 pub mod piece;
@@ -1020,7 +1020,7 @@ impl ChessBoard {
         let mut board_copy = self.clone();
 
         let (_, best_move) =
-            search::minimax_alpha_beta_search(&mut board_copy, 6, side_to_move, stop_flag);
+            search::minimax_alpha_beta_search(&mut board_copy, 7, side_to_move, stop_flag);
         best_move
     }
 
@@ -1079,10 +1079,7 @@ impl ChessBoard {
     }
 
     /// Create board passing the zobrist keys to be used and the transposition table structure
-    pub fn new(
-        zobrist_keys: Arc<Zobrist>,
-        transposition_table: Arc<TranspositionTable>,
-    ) -> Self {
+    pub fn new(zobrist_keys: Arc<Zobrist>, transposition_table: Arc<TranspositionTable>) -> Self {
         ChessBoard {
             board_width: 10,
             board_height: 12,
