@@ -5,8 +5,8 @@
 //! integration for chess engine communication.
 
 use std::io::{self, Write};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -489,10 +489,7 @@ impl GameState {
     }
 
     /// Creates a default game state passing the zobrist keys and transposition table structure to be used
-    pub fn new(
-        zobrist_keys: Arc<Zobrist>,
-        transposition_table: Arc<TranspositionTable>,
-    ) -> Self {
+    pub fn new(zobrist_keys: Arc<Zobrist>, transposition_table: Arc<TranspositionTable>) -> Self {
         GameState {
             ply_moves: 0,
             side_to_move: Color::White,

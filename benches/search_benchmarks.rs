@@ -1,7 +1,7 @@
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
-use divan::black_box;
+use divan::{Bencher, black_box};
 use enrust::game_state::ChessBoard;
 use enrust::game_state::Color;
 use enrust::game_state::GameState;
@@ -31,13 +31,14 @@ args = [
     ("rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 1")
 ],
 )]
-fn bench_minimax(fen: &str) {
+fn bench_minimax(bencher: Bencher, fen: &str) {
     let mut game = setup_game(fen);
 
     let stop_flag = Arc::new(AtomicBool::new(false));
-    let (score, _) = pure_minimax_search(&mut game, 4, Color::White, stop_flag);
-
-    black_box(score);
+    bencher.bench_local(|| {
+        let (score, _) = pure_minimax_search(&mut game, 4, Color::White, stop_flag.clone());
+        black_box(score);
+    });
 }
 
 #[divan::bench(
@@ -48,13 +49,14 @@ args = [
     ("rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 1")
 ],
 )]
-fn bench_negamax(fen: &str) {
+fn bench_negamax(bencher: Bencher, fen: &str) {
     let mut game = setup_game(fen);
 
     let stop_flag = Arc::new(AtomicBool::new(false));
-    let (score, _) = pure_negamax_search(&mut game, 4, Color::White, stop_flag);
-
-    black_box(score);
+    bencher.bench_local(|| {
+        let (score, _) = pure_negamax_search(&mut game, 4, Color::White, stop_flag.clone());
+        black_box(score);
+    });
 }
 
 #[divan::bench(
@@ -65,11 +67,12 @@ args = [
     ("rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 1")
 ],
 )]
-fn bench_minimax_alpha_beta(fen: &str) {
+fn bench_minimax_alpha_beta(bencher: Bencher, fen: &str) {
     let mut game = setup_game(fen);
 
     let stop_flag = Arc::new(AtomicBool::new(false));
-    let (score, _) = minimax_alpha_beta_search(&mut game, 4, Color::White, stop_flag);
-
-    black_box(score);
+    bencher.bench_local(|| {
+        let (score, _) = minimax_alpha_beta_search(&mut game, 4, Color::White, stop_flag.clone());
+        black_box(score);
+    });
 }
