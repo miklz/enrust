@@ -285,10 +285,27 @@ fn minimax_alpha_beta(
     }
 
     let mut node_type = NodeType::Exact;
-    let moves = game.generate_moves(side_to_move);
+    let mut moves = game.generate_moves(side_to_move);
+
+    // Sort moves from least interesting to more insteresting
+    moves.sort_by(|mv_a, mv_b| {
+        let mv_a_is_capture = mv_a.is_capture();
+        let mv_b_is_capture = mv_b.is_capture();
+
+        match (mv_a_is_capture, mv_b_is_capture) {
+            (true, false) => std::cmp::Ordering::Greater, // mv_a is a capture and mv_b is not
+            (false, true) => std::cmp::Ordering::Less,    // mv_b is a capture and mv_a is not
+            _ => std::cmp::Ordering::Equal,               // Both moves are equally good
+        }
+    });
+
+    if let Some(best_mv) = best_move.clone() {
+        // Insert previous best move found
+        moves.push(best_mv);
+    }
 
     let final_score = if side_to_move == Color::White {
-        for mv in moves {
+        for mv in moves.into_iter().rev() {
             // Abruptly end the search if required
             if stop_flag.load(Ordering::Acquire) {
                 return alpha;
@@ -319,7 +336,7 @@ fn minimax_alpha_beta(
 
         alpha
     } else {
-        for mv in moves {
+        for mv in moves.into_iter().rev() {
             // Abruptly end the search if required
             if stop_flag.load(Ordering::Acquire) {
                 return beta;
@@ -351,11 +368,12 @@ fn minimax_alpha_beta(
         beta
     };
 
-    let encoded_move = if best_move.is_some() {
-        best_move.unwrap().encode(game)
+    let encoded_move = if let Some(best_mv) = best_move {
+        best_mv.encode(game)
     } else {
         0
     };
+
     let transposition_table = &game.transposition_table;
     transposition_table.save_position(
         game.hash,
@@ -420,15 +438,15 @@ pub fn minimax_alpha_beta_search(
         game.unmake_move(&mv);
 
         if side_to_move == Color::White {
-            if score >= best_score {
+            if score >= alpha {
                 best_score = score;
                 best_move = Some(mv.clone());
-                alpha = alpha.max(score)
+                alpha = score;
             }
-        } else if score <= best_score {
+        } else if score <= beta {
             best_score = score;
             best_move = Some(mv.clone());
-            beta = beta.min(score);
+            beta = score;
         }
     }
 
