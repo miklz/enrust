@@ -35,14 +35,9 @@
 //! You can use the engine programmatically:
 //!
 //! ```rust
-//! use std::sync::Arc;
-//! use enrust::game_state::{GameState, Color, SearchConfiguration, Zobrist, TranspositionTable};
-//!
-//! let zobrist_keys = Arc::new(Zobrist::new());
-//!
-//! let shared_transposition_table = Arc::new(TranspositionTable::new(256));
-//!
-//! let mut game_state = GameState::new(zobrist_keys, shared_transposition_table);
+//! use enrust::game_state::{GameState, Color, SearchConfiguration};
+//! // Create a game with a transposition table of size 256 MB
+//! let mut game_state = GameState::new(Some(256));
 //! game_state.start_position();
 //!
 //! // Set up time control
@@ -183,10 +178,8 @@
 //! - Inspired by classic chess engine architectures
 //! - Uses the SmallVec crate for efficient small vector storage
 //! - UCI protocol specification by Stefan Meyer-Kahlen
-use std::sync::Arc;
-
 pub mod game_state;
-use crate::game_state::{GameState, TranspositionTable, Zobrist};
+use crate::game_state::GameState;
 
 use std::time::Instant;
 
@@ -221,12 +214,8 @@ pub fn start_engine() {
 }
 
 pub fn run_benchmark() {
-    let zobrist_keys = Arc::new(Zobrist::new());
-
-    // Table is not used in this benchmark so we initialize with 0 MB
-    let shared_transposition_table = Arc::new(TranspositionTable::new(0));
-
-    let mut game = GameState::new(zobrist_keys, shared_transposition_table);
+    // Creates a game object without a transposition table
+    let mut game = GameState::new(None);
     game.start_position();
 
     let start_time = Instant::now();

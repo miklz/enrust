@@ -17,7 +17,7 @@ pub fn handle_uci_command() {
     println!("id name EnRust");
     println!("id author Mikael Ferraz Aldebrand");
     println!("option name Threads type spin default 1 min 1 max 1");
-    println!("option name Hash type spin default 1 min 1 max 1");
+    println!("option name Hash type spin default 256 min 1 max 2048");
     println!("uciok");
 }
 
@@ -153,4 +153,54 @@ pub fn handle_go_command(game_state: &mut GameState, tokens: &mut SplitWhitespac
     // Output the best move found by the search
     //println!("bestmove {}", game_state.search());
     game_state.search();
+}
+
+pub fn handle_setoption_command(game_state: &mut GameState, tokens: &mut SplitWhitespace) {
+    // Expect "name" token
+    if tokens.next() != Some("name") {
+        println!("info string Missing 'name' in setoption command");
+        return;
+    }
+
+    // Collect the option name (could be multiple words)
+    let mut option_name = String::new();
+    for token in tokens.by_ref() {
+        if token == "value" {
+            break;
+        }
+        if !option_name.is_empty() {
+            option_name.push(' ');
+        }
+        option_name.push_str(token);
+    }
+
+    // If we have an option name and found "value", process the value
+    if !option_name.is_empty() {
+        // Collect the value (could be multiple words)
+        let value: String = tokens.collect::<Vec<&str>>().join(" ");
+
+        match option_name.as_str() {
+            "Hash" => {
+                if let Ok(hash_size) = value.parse::<usize>() {
+                    if hash_size > 0 && hash_size <= 2048 {
+                        // Reasonable limits
+                        game_state.resize_hash_table(hash_size);
+                    } else {
+                        println!(
+                            "info string Hash size {} MB out of range (1-1024)",
+                            hash_size
+                        );
+                    }
+                } else {
+                    println!("info string Invalid Hash value: '{}'", value);
+                }
+            }
+            _ => {
+                // Ignore unsupported options
+                println!("info string Unsupported option: '{}'", option_name);
+            }
+        }
+    } else {
+        println!("info string Missing option name in setoption command");
+    }
 }

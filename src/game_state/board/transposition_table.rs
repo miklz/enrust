@@ -12,12 +12,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// - `side_to_move`: Random value for white/black turn
 /// - `castling_rights`: 4 random values for [White QueenSide, White KingSide, Black QueenSide, Black KingSide]
 /// - `en_passant`: 8 random values for each file where en passant can occur
-///
-/// # Example
-/// ```
-/// let zobrist = Zobrist::new();
-/// let hash = compute_position_hash(&board, &zobrist);
-/// ```
 #[derive(Clone)]
 pub struct Zobrist {
     // [square_index][piece_index]
@@ -319,6 +313,8 @@ impl TranspositionTable {
     ///
     /// # Example
     /// ```
+    /// use enrust::game_state::TranspositionTable;
+    ///
     /// let tt = TranspositionTable::new(128); // 128MB table, ~8M entries
     /// ```
     pub fn new(size_mb: usize) -> Self {
@@ -350,6 +346,8 @@ impl TranspositionTable {
     ///
     /// # Example
     /// ```
+    /// use enrust::game_state::TranspositionTable;
+    ///
     /// let mut tt = TranspositionTable::new(64); // 64MB table
     /// tt.resize(128); // Now 128MB table, all previous entries lost
     /// ```
