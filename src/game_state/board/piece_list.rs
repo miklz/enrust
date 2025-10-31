@@ -1747,18 +1747,11 @@ impl Default for PieceList {
 
 #[cfg(test)]
 mod is_square_attacked_tests {
-    use std::sync::Arc;
-
     use super::*;
     use crate::game_state::GameState;
-    use crate::game_state::{TranspositionTable, Zobrist};
 
     fn setup_game_with_fen(fen: &str) -> GameState {
-        let zobrist_keys = Arc::new(Zobrist::new());
-
-        let shared_transposition_table = Arc::new(TranspositionTable::new(256));
-
-        let mut game = GameState::new(zobrist_keys, shared_transposition_table);
+        let mut game = GameState::new(Some(0));
         game.set_fen_position(fen);
         game
     }

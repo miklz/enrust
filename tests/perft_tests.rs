@@ -1,16 +1,9 @@
 #[cfg(test)]
 mod perft_tests {
-    use std::sync::Arc;
-
     use enrust::game_state::GameState;
-    use enrust::game_state::{TranspositionTable, Zobrist};
 
     fn run_perft_test(fen: &str, depth: u64, expected_nodes: u64) {
-        let zobrist_keys = Arc::new(Zobrist::new());
-
-        let shared_transposition_table = Arc::new(TranspositionTable::new(256));
-
-        let mut game = GameState::new(zobrist_keys, shared_transposition_table);
+        let mut game = GameState::new(None);
         assert!(game.set_fen_position(fen), "Failed to set FEN: {}", fen);
 
         let nodes = game.perft_debug(depth, false);

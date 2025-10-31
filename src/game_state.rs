@@ -488,8 +488,22 @@ impl GameState {
         &self.board
     }
 
+    pub fn resize_hash_table(&mut self, new_size_mb: usize) {
+        let transposition_table = Arc::new(TranspositionTable::new(new_size_mb));
+
+        self.board.set_transposition_table(transposition_table);
+    }
+
     /// Creates a default game state passing the zobrist keys and transposition table structure to be used
-    pub fn new(zobrist_keys: Arc<Zobrist>, transposition_table: Arc<TranspositionTable>) -> Self {
+    pub fn new(table_size_mb: Option<usize>) -> Self {
+        // 1. Create the zobrist keys once.
+        // Wrap it in Arc<> to enable shared read access
+        let zobrist_keys = Arc::new(Zobrist::new());
+
+        // 2. Create the transposition table once
+        let table_size = table_size_mb.unwrap_or(0);
+        let transposition_table = Arc::new(TranspositionTable::new(table_size));
+
         GameState {
             ply_moves: 0,
             side_to_move: Color::White,
@@ -527,15 +541,7 @@ impl GameState {
 /// 7. Engine responds with `bestmove` when search completes
 /// 8. Process repeats until `quit` command
 pub fn uci_main() {
-    // 1. Create the zobrist keys once.
-    // Wrap it in Arc<> to enable shared read access
-    let zobrist_keys = Arc::new(Zobrist::new());
-
-    // 2. Create the transposition table once
-    //    Wrap it in Arc<RwLock<...>> to enable shared, mutable access.
-    let shared_transposition_table = Arc::new(TranspositionTable::new(256));
-
-    let mut game_state = GameState::new(zobrist_keys, shared_transposition_table);
+    let mut game_state = GameState::new(Some(256));
 
     // Main UCI protocol loop
     loop {
@@ -603,6 +609,11 @@ pub fn uci_main() {
 
                 "stop" => {
                     game_state.stop_search();
+                }
+
+                "setoption" => {
+                    // Configure engine based on the GUI parameters
+                    uci::handle_setoption_command(&mut game_state, &mut uci_cmd);
                 }
 
                 // This is not a uci command, is my way of printing the board
