@@ -7,14 +7,9 @@ mod minimax_alpha_beta_tests {
     use enrust::game_state::Color;
     use enrust::game_state::GameState;
     use enrust::game_state::board::search::*;
-    use enrust::game_state::{TranspositionTable, Zobrist};
 
     fn setup_test_game(fen: &str) -> ChessBoard {
-        let zobrist_keys = Arc::new(Zobrist::new());
-
-        let shared_transposition_table = Arc::new(TranspositionTable::new(256));
-
-        let mut game = GameState::new(zobrist_keys, shared_transposition_table);
+        let mut game = GameState::new(Some(256));
         game.set_fen_position(fen);
         game.get_chess_board().clone()
     }

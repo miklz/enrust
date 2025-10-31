@@ -1078,6 +1078,10 @@ impl ChessBoard {
         self.piece_list.generate_legal_moves(&mut board_copy, color)
     }
 
+    pub fn set_transposition_table(&mut self, transposition_table: Arc<TranspositionTable>) {
+        self.transposition_table = transposition_table;
+    }
+
     /// Create board passing the zobrist keys to be used and the transposition table structure
     pub fn new(zobrist_keys: Arc<Zobrist>, transposition_table: Arc<TranspositionTable>) -> Self {
         ChessBoard {
@@ -1110,11 +1114,7 @@ mod chess_board_tests {
     use crate::game_state::GameState;
 
     fn setup_game_with_fen(fen: &str) -> GameState {
-        let zobrist_keys = Arc::new(Zobrist::new());
-
-        let shared_transposition_table = Arc::new(TranspositionTable::new(256));
-
-        let mut game = GameState::new(zobrist_keys, shared_transposition_table);
+        let mut game = GameState::new(None);
         game.set_fen_position(fen);
         game
     }
@@ -1187,11 +1187,7 @@ mod castling_tests {
     use crate::game_state::GameState;
 
     fn setup_game_with_fen(fen: &str) -> GameState {
-        let zobrist_keys = Arc::new(Zobrist::new());
-
-        let shared_transposition_table = Arc::new(TranspositionTable::new(256));
-
-        let mut game = GameState::new(zobrist_keys, shared_transposition_table);
+        let mut game = GameState::new(None);
         game.set_fen_position(fen);
         game
     }
@@ -1285,11 +1281,7 @@ mod can_castle_queenside_tests {
     use crate::game_state::GameState;
 
     fn setup_game_with_fen(fen: &str) -> GameState {
-        let zobrist_keys = Arc::new(Zobrist::new());
-
-        let shared_transposition_table = Arc::new(TranspositionTable::new(256));
-
-        let mut game = GameState::new(zobrist_keys, shared_transposition_table);
+        let mut game = GameState::new(None);
         game.set_fen_position(fen);
         game
     }
@@ -1408,21 +1400,13 @@ mod zobrist_tests {
     use crate::GameState;
 
     fn setup_game_with_fen(fen: &str) -> GameState {
-        let zobrist_keys = Arc::new(Zobrist::new());
-
-        let shared_transposition_table = Arc::new(TranspositionTable::new(256));
-
-        let mut game = GameState::new(zobrist_keys, shared_transposition_table);
+        let mut game = GameState::new(None);
         game.set_fen_position(fen);
         game
     }
 
     fn create_test_board() -> ChessBoard {
-        let zobrist_keys = Arc::new(Zobrist::new());
-
-        let transposition_table = Arc::new(TranspositionTable::new(256));
-
-        let mut game = GameState::new(zobrist_keys, transposition_table);
+        let mut game = GameState::new(None);
         game.set_fen_position("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
         game.board
     }

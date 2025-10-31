@@ -277,9 +277,8 @@ mod transposition_logic_tests {
     use enrust::game_state::Move;
     use enrust::game_state::Piece;
     use enrust::game_state::board::transposition_table::{
-        NodeType, TranspositionTable, TranspositionTableData, Zobrist,
+        NodeType, TranspositionTable, TranspositionTableData,
     };
-    use std::sync::Arc;
 
     #[test]
     fn test_replace_if_better_logic() {
@@ -361,11 +360,7 @@ mod transposition_logic_tests {
     }
 
     fn setup_game_with_fen(fen: &str) -> GameState {
-        let zobrist_keys = Arc::new(Zobrist::new());
-
-        let shared_transposition_table = Arc::new(TranspositionTable::new(0));
-
-        let mut game = GameState::new(zobrist_keys, shared_transposition_table);
+        let mut game = GameState::new(None);
         game.set_fen_position(fen);
         game
     }
