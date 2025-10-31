@@ -346,65 +346,16 @@ impl Move {
         Some(rank_idx * 8 + file_idx)
     }
 
-    /// Parses a UCI algebraic notation string into a Move struct.
-    ///
-    /// Supports standard UCI format: `<from><to>[<promotion>]`
-    /// Examples: "e2e4", "g1f3", "a7a8q"
-    ///
-    /// # Arguments
-    ///
-    /// * `chess_board` - Reference to the current board state
-    /// * `uci_notation` - UCI move string
-    ///
-    /// # Returns
-    ///
-    /// `Some(Move)` if the notation is valid, `None` otherwise
-    pub fn parse_algebraic_move(chess_board: &ChessBoard, uci_notation: &str) -> Option<Self> {
-        if uci_notation.len() < 4 {
-            return None;
-        }
-
-        let from =
-            chess_board.map_inner_to_outer_board(Self::notation_to_square(&uci_notation[0..2])?);
-        let to =
-            chess_board.map_inner_to_outer_board(Self::notation_to_square(&uci_notation[2..4])?);
-
-        // Get the moving piece from the board
+    fn get_move_from_to_promotion(
+        chess_board: &ChessBoard,
+        from: i16,
+        to: i16,
+        promotion: Option<Piece>,
+    ) -> Option<Self> {
         let moving_piece = chess_board.get_piece_on_square(from);
-        if moving_piece == Piece::EmptySquare {
-            return None;
-        }
 
         // Get captured piece
         let captured_piece = chess_board.get_piece_on_square(to);
-
-        let promotion = if uci_notation.len() == 5 {
-            match &uci_notation[4..5] {
-                "q" => Some(if moving_piece.is_white() {
-                    Piece::WhiteQueen
-                } else {
-                    Piece::BlackQueen
-                }),
-                "r" => Some(if moving_piece.is_white() {
-                    Piece::WhiteRook
-                } else {
-                    Piece::BlackRook
-                }),
-                "n" => Some(if moving_piece.is_white() {
-                    Piece::WhiteKnight
-                } else {
-                    Piece::BlackKnight
-                }),
-                "b" => Some(if moving_piece.is_white() {
-                    Piece::WhiteBishop
-                } else {
-                    Piece::BlackBishop
-                }),
-                _ => None,
-            }
-        } else {
-            None
-        };
 
         let castling = Self::detect_castling(chess_board, moving_piece, from, to);
 
@@ -446,6 +397,66 @@ impl Move {
         })
     }
 
+    /// Parses a UCI algebraic notation string into a Move struct.
+    ///
+    /// Supports standard UCI format: `<from><to>[<promotion>]`
+    /// Examples: "e2e4", "g1f3", "a7a8q"
+    ///
+    /// # Arguments
+    ///
+    /// * `chess_board` - Reference to the current board state
+    /// * `uci_notation` - UCI move string
+    ///
+    /// # Returns
+    ///
+    /// `Some(Move)` if the notation is valid, `None` otherwise
+    pub fn parse_algebraic_move(chess_board: &ChessBoard, uci_notation: &str) -> Option<Self> {
+        if uci_notation.len() < 4 {
+            return None;
+        }
+
+        let from =
+            chess_board.map_inner_to_outer_board(Self::notation_to_square(&uci_notation[0..2])?);
+        let to =
+            chess_board.map_inner_to_outer_board(Self::notation_to_square(&uci_notation[2..4])?);
+
+        // Get the moving piece from the board
+        let moving_piece = chess_board.get_piece_on_square(from);
+        if moving_piece == Piece::EmptySquare {
+            return None;
+        }
+
+        let promotion = if uci_notation.len() == 5 {
+            match &uci_notation[4..5] {
+                "q" => Some(if moving_piece.is_white() {
+                    Piece::WhiteQueen
+                } else {
+                    Piece::BlackQueen
+                }),
+                "r" => Some(if moving_piece.is_white() {
+                    Piece::WhiteRook
+                } else {
+                    Piece::BlackRook
+                }),
+                "n" => Some(if moving_piece.is_white() {
+                    Piece::WhiteKnight
+                } else {
+                    Piece::BlackKnight
+                }),
+                "b" => Some(if moving_piece.is_white() {
+                    Piece::WhiteBishop
+                } else {
+                    Piece::BlackBishop
+                }),
+                _ => None,
+            }
+        } else {
+            None
+        };
+
+        Self::get_move_from_to_promotion(chess_board, from, to, promotion)
+    }
+
     /// Converts the move to UCI algebraic notation.
     ///
     /// # Arguments
@@ -481,5 +492,62 @@ impl Move {
     /// `true` if the move captures a piece, `false` otherwise
     pub fn is_capture(&self) -> bool {
         self.captured_piece.is_valid_piece()
+    }
+
+    /// Compress move to be more efficient on the transposition table
+    ///
+    /// # Returns
+    /// u16 comprision of |from square 6 bits|to square 6 bits|captured piece 4 bits|
+    pub fn encode(&self, chess_board: &ChessBoard) -> u16 {
+        let mut encoded_move: u16 = 0;
+
+        let from_square = chess_board.map_to_standard_chess_board(self.from) as u16;
+        encoded_move |= from_square;
+
+        let to_square = chess_board.map_to_standard_chess_board(self.to) as u16;
+        encoded_move |= to_square << 6;
+
+        if let Some(promotion) = self.promotion {
+            let promoted_piece = match promotion.get_type() {
+                PieceType::Queen => 0b0001,
+                PieceType::Rook => 0b0010,
+                PieceType::Bishop => 0b0100,
+                PieceType::Knight => 0b1000,
+                _ => 0,
+            };
+
+            encoded_move |= promoted_piece << 12;
+        }
+
+        encoded_move
+    }
+
+    pub fn decode(encoded_move: u16, chess_board: &ChessBoard) -> Option<Move> {
+        let from_8x8 = (encoded_move & 0b11_1111) as i16;
+        let to_8x8 = ((encoded_move >> 6) & 0b011_1111) as i16;
+        let promoted_piece = ((encoded_move >> 12) & 0b1111) as u8;
+
+        // Get the moving piece from the board
+        let from = chess_board.map_inner_to_outer_board(from_8x8);
+        let moving_piece = chess_board.get_piece_on_square(from);
+        if moving_piece == Piece::EmptySquare {
+            return None;
+        }
+
+        let promotion = match (promoted_piece, moving_piece.get_color()) {
+            (0, _) => None,
+            (0x01, Color::White) => Some(Piece::WhiteQueen),
+            (0x01, Color::Black) => Some(Piece::BlackQueen),
+            (0x02, Color::White) => Some(Piece::WhiteRook),
+            (0x02, Color::Black) => Some(Piece::BlackRook),
+            (0x04, Color::White) => Some(Piece::WhiteBishop),
+            (0x04, Color::Black) => Some(Piece::BlackBishop),
+            (0x08, Color::White) => Some(Piece::WhiteKnight),
+            (0x08, Color::Black) => Some(Piece::BlackKnight),
+            (_, _) => None,
+        };
+
+        let to = chess_board.map_inner_to_outer_board(to_8x8);
+        Self::get_move_from_to_promotion(chess_board, from, to, promotion)
     }
 }

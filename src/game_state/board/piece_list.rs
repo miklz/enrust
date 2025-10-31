@@ -1259,9 +1259,9 @@ impl PieceList {
     /// # Returns
     ///
     /// Number of pieces, or `None` if the piece type is invalid
-    pub fn get_number_of_pieces(&self, piece: Piece) -> Option<i64> {
+    pub fn get_number_of_pieces(&self, piece: Piece) -> Option<i16> {
         if let Some(piece_list) = self.get_list(piece) {
-            return Some(piece_list.len() as i64);
+            return Some(piece_list.len() as i16);
         }
         None
     }
@@ -1750,10 +1750,15 @@ mod is_square_attacked_tests {
     use super::*;
     use crate::game_state::GameState;
 
+    fn setup_game_with_fen(fen: &str) -> GameState {
+        let mut game = GameState::new(Some(0));
+        game.set_fen_position(fen);
+        game
+    }
+
     #[test]
     fn test_pawn_attacks() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/8/3p4/4P3/8/8 w - - 0 1");
+        let game = setup_game_with_fen("8/8/8/8/3p4/4P3/8/8 w - - 0 1");
         /*
             12x10 Chess Board:
             ==============================
@@ -1805,8 +1810,7 @@ mod is_square_attacked_tests {
 
     #[test]
     fn test_knight_attacks() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/3N4/8/8/8/8 w - - 0 1");
+        let game = setup_game_with_fen("8/8/8/3N4/8/8/8/8 w - - 0 1");
         /*
             12x10 Chess Board:
             ==============================
@@ -1853,8 +1857,7 @@ mod is_square_attacked_tests {
 
     #[test]
     fn test_bishop_attacks() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/3B4/8/8/8/8 w - - 0 1");
+        let game = setup_game_with_fen("8/8/8/3B4/8/8/8/8 w - - 0 1");
         /*
             12x10 Chess Board:
             ==============================
@@ -1901,8 +1904,7 @@ mod is_square_attacked_tests {
 
     #[test]
     fn test_rook_attacks() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/3R4/8/8/8/8 w - - 0 1");
+        let game = setup_game_with_fen("8/8/8/3R4/8/8/8/8 w - - 0 1");
         /*
             ==============================
             10 │ X X X X X X X X X X │
@@ -1944,8 +1946,7 @@ mod is_square_attacked_tests {
     }
     #[test]
     fn test_queen_attacks() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/3Q4/8/8/8/8 w - - 0 1");
+        let game = setup_game_with_fen("8/8/8/3Q4/8/8/8/8 w - - 0 1");
         /*
             12x10 Chess Board:
             ==============================
@@ -1989,8 +1990,7 @@ mod is_square_attacked_tests {
 
     #[test]
     fn test_king_attacks() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/3K4/8/8/8/8 w - - 0 1");
+        let game = setup_game_with_fen("8/8/8/3K4/8/8/8/8 w - - 0 1");
         /*
             12x10 Chess Board:
             ==============================
@@ -2035,8 +2035,7 @@ mod is_square_attacked_tests {
 
     #[test]
     fn test_blocked_attacks() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/3R4/3P4/8/8/8 w - - 0 1");
+        let game = setup_game_with_fen("8/8/8/3R4/3P4/8/8/8 w - - 0 1");
         /*
             12x10 Chess Board:
             ==============================

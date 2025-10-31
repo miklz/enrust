@@ -36,8 +36,8 @@
 //!
 //! ```rust
 //! use enrust::game_state::{GameState, Color, SearchConfiguration};
-//!
-//! let mut game_state = GameState::default();
+//! // Create a game with a transposition table of size 256 MB
+//! let mut game_state = GameState::new(Some(256));
 //! game_state.start_position();
 //!
 //! // Set up time control
@@ -178,7 +178,6 @@
 //! - Inspired by classic chess engine architectures
 //! - Uses the SmallVec crate for efficient small vector storage
 //! - UCI protocol specification by Stefan Meyer-Kahlen
-
 pub mod game_state;
 use crate::game_state::GameState;
 
@@ -215,7 +214,8 @@ pub fn start_engine() {
 }
 
 pub fn run_benchmark() {
-    let mut game = GameState::default();
+    // Creates a game object without a transposition table
+    let mut game = GameState::new(None);
     game.start_position();
 
     let start_time = Instant::now();

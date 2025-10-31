@@ -14,7 +14,7 @@ fn main() {
     ],
 )]
 fn setup_position(bencher: Bencher, fen: &str) {
-    let mut game = GameState::default();
+    let mut game = GameState::new(Some(256));
 
     bencher.bench_local(|| game.set_fen_position(fen))
 }
@@ -32,7 +32,7 @@ fn setup_position(bencher: Bencher, fen: &str) {
     ],
 )]
 fn generate_moves(bencher: Bencher, fen: &str) {
-    let mut game = GameState::default();
+    let mut game = GameState::new(Some(256));
     game.set_fen_position(fen);
 
     bencher.bench_local(|| {
@@ -42,7 +42,7 @@ fn generate_moves(bencher: Bencher, fen: &str) {
 
 #[divan::bench]
 fn make_unmake_move(bencher: Bencher) {
-    let mut game = GameState::default();
+    let mut game = GameState::new(Some(256));
     game.set_fen_position("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 b - - 0 1");
 
     let moves: Vec<String> = game.generate_moves();
