@@ -10,13 +10,13 @@ test:
   base_engine: "EnRust"
 
   dev_branch: "${DEV_BRANCH}"
-  dev_bench: "4075000"
+  dev_bench: "197281"
   dev_network: ""
   dev_options: "Threads=1 Hash=32"
   dev_time_control : "8.0+0.08"
 
   base_branch: "${BASE_BRANCH}"
-  base_bench: "4075000"
+  base_bench: "197281"
   base_network: ""
   base_options: "Threads=1 Hash=32"
   base_time_control: "8.0+0.08"
