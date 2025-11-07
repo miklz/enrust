@@ -12,10 +12,12 @@ pub mod moves;
 pub mod piece;
 pub mod piece_list;
 pub mod search;
+pub mod transposition_table;
 
 use moves::Move;
 use piece::{Color, Piece, PieceType};
 use piece_list::PieceList;
+use transposition_table::{TranspositionTable, Zobrist};
 
 /// Represents the castling rights for both players.
 ///
@@ -69,6 +71,15 @@ pub struct ChessBoard {
 
     /// Piece lists for efficient piece tracking and move generation
     piece_list: PieceList,
+
+    /// Zobrist structure with random numbers
+    zobrist: Arc<Zobrist>,
+
+    /// Hash value that represents this board position
+    hash: u64,
+
+    /// Transposition Table
+    transposition_table: Arc<TranspositionTable>,
 }
 
 impl ChessBoard {
@@ -88,7 +99,7 @@ impl ChessBoard {
     /// # Returns
     ///
     /// Material score from white's perspective (positive if white has advantage)
-    fn material_score(&self, piece_list: &PieceList) -> i64 {
+    fn material_score(&self, piece_list: &PieceList) -> i16 {
         // count pieces
         let w_king = piece_list
             .get_number_of_pieces(Piece::WhiteKing)
@@ -139,7 +150,7 @@ impl ChessBoard {
     /// # Returns
     ///
     /// Score from white's perspective (positive if white is winning)
-    pub fn evaluate(&self) -> i64 {
+    pub fn evaluate(&self) -> i16 {
         self.material_score(&self.piece_list)
     }
 
@@ -737,12 +748,131 @@ impl ChessBoard {
         true
     }
 
+    fn zobrist_hash(&self, side_to_move: Color) -> u64 {
+        let mut hash = 0u64;
+
+        // Hash pieces
+        for square_idx in 0..64 {
+            let piece = self.get_piece_on_square(self.map_inner_to_outer_board(square_idx));
+            if !piece.is_empty() {
+                hash ^= self.zobrist.pieces[square_idx as usize][piece as usize];
+            }
+        }
+
+        // Hash side to move
+        if side_to_move == Color::Black {
+            hash ^= self.zobrist.side_to_move;
+        }
+
+        // Hash castling rights
+        if self.castling_rights.white_queenside {
+            hash ^= self.zobrist.castling_rights[0];
+        }
+        if self.castling_rights.white_kingside {
+            hash ^= self.zobrist.castling_rights[1];
+        }
+        if self.castling_rights.black_queenside {
+            hash ^= self.zobrist.castling_rights[2];
+        }
+        if self.castling_rights.black_kingside {
+            hash ^= self.zobrist.castling_rights[3];
+        }
+
+        // Hash en passant file
+        if let Some(square) = self.get_en_passant_target() {
+            let file = self.square_file(square) - (self.board_width - 8) / 2;
+            hash ^= self.zobrist.en_passant[file as usize];
+        }
+
+        hash
+    }
+
+    fn update_hash(&mut self, mv: &Move) {
+        let from_square = self.map_to_standard_chess_board(mv.from);
+        let to_square = self.map_to_standard_chess_board(mv.to);
+
+        // 1. Hash out the piece from its original square
+        self.hash ^= self.zobrist.pieces[from_square][mv.piece as usize];
+
+        // 2. Hash out the captured piece from its square (if any)
+        if mv.captured_piece.is_valid_piece() {
+            self.hash ^= self.zobrist.pieces[to_square][mv.captured_piece as usize];
+        }
+
+        // 3. Hash in the moved piece to its new square
+        self.hash ^= self.zobrist.pieces[to_square][mv.piece as usize];
+
+        // 4. Hash out the old side to move
+        self.hash ^= self.zobrist.side_to_move;
+
+        // 5. Hash out castling move
+        if let Some(castling) = &mv.castling {
+            let rook_from = self.map_to_standard_chess_board(castling.rook_from);
+            let rook_to = self.map_to_standard_chess_board(castling.rook_to);
+            self.hash ^= self.zobrist.pieces[rook_from][castling.rook_piece as usize];
+            self.hash ^= self.zobrist.pieces[rook_to][castling.rook_piece as usize];
+        }
+
+        // 6. Hash out en passant squares
+        if let Some(square) = mv.en_passant_square {
+            let file = self.square_file(square) - (self.board_width - 8) / 2;
+            self.hash ^= self.zobrist.en_passant[file as usize];
+        }
+
+        if let Some(square) = mv.previous_en_passant {
+            let file = self.square_file(square) - (self.board_width - 8) / 2;
+            self.hash ^= self.zobrist.en_passant[file as usize];
+        }
+
+        // 7. Hash out en passant moves
+        if mv.en_passant {
+            let capture_square = if mv.piece.is_white() {
+                self.map_to_standard_chess_board(mv.to - self.board_width)
+            } else {
+                self.map_to_standard_chess_board(mv.to + self.board_width)
+            };
+            let captured_pawn = if mv.piece.is_white() {
+                Piece::BlackPawn
+            } else {
+                Piece::WhitePawn
+            };
+            self.hash ^= self.zobrist.pieces[capture_square][captured_pawn as usize];
+        }
+
+        // 8. Promotion: Hash out the pawn and hash in the new piece on the same square.
+        if let Some(promoted_piece) = mv.promotion {
+            // hash out the pawn
+            self.hash ^= self.zobrist.pieces[to_square][mv.piece as usize];
+            // hash in the promoted piece
+            self.hash ^= self.zobrist.pieces[to_square][promoted_piece as usize];
+        }
+
+        // 9. Handle castling rights changes
+        if let Some(old_rights) = &mv.previous_castling_rights {
+            let new_rights = &self.castling_rights;
+
+            // Only update hash for rights that actually changed
+            if old_rights.white_queenside != new_rights.white_queenside {
+                self.hash ^= self.zobrist.castling_rights[0];
+            }
+            if old_rights.white_kingside != new_rights.white_kingside {
+                self.hash ^= self.zobrist.castling_rights[1];
+            }
+            if old_rights.black_queenside != new_rights.black_queenside {
+                self.hash ^= self.zobrist.castling_rights[2];
+            }
+            if old_rights.black_kingside != new_rights.black_kingside {
+                self.hash ^= self.zobrist.castling_rights[3];
+            }
+        }
+    }
+
     /// Sets up the board from an 8x8 array of pieces.
     ///
     /// # Arguments
     ///
     /// * `board_position` - Array of 64 pieces representing the chess board
-    pub fn set_board(&mut self, board_position: &[Piece; 64]) {
+    pub fn set_board(&mut self, board_position: &[Piece; 64], side_to_move: Color) {
         // Set all squares to invalid
         for square in self.board_squares.iter_mut() {
             *square = Piece::SentinelSquare;
@@ -755,6 +885,9 @@ impl ChessBoard {
 
         // When the board is set all at once we have to update the piece-lists
         self.piece_list.update_lists(&self.board_squares);
+
+        // Calculate hash for this board position
+        self.hash = self.zobrist_hash(side_to_move);
     }
 
     /// Sets the en passant target square from a standard chess coordinate.
@@ -819,6 +952,10 @@ impl ChessBoard {
 
         // Update piece list
         self.piece_list.make_move(mv);
+
+        // Update hash AFTER changing board state
+        // so we can see what was changed after applying this move
+        self.update_hash(mv);
     }
 
     /// Reverts a move on the board.
@@ -829,6 +966,10 @@ impl ChessBoard {
     ///
     /// * `mv` - The move to undo
     pub fn unmake_move(&mut self, mv: &Move) {
+        // Update hash BEFORE restoring board state
+        // so that we can see what WILL change when this revoked
+        self.update_hash(mv);
+
         // Restaure captured piece
         self.set_piece_on_square(mv.captured_piece, mv.to);
 
@@ -936,11 +1077,13 @@ impl ChessBoard {
         let mut board_copy = self.clone();
         self.piece_list.generate_legal_moves(&mut board_copy, color)
     }
-}
 
-impl Default for ChessBoard {
-    /// Creates a default chess board with initial position.
-    fn default() -> Self {
+    pub fn set_transposition_table(&mut self, transposition_table: Arc<TranspositionTable>) {
+        self.transposition_table = transposition_table;
+    }
+
+    /// Create board passing the zobrist keys to be used and the transposition table structure
+    pub fn new(zobrist_keys: Arc<Zobrist>, transposition_table: Arc<TranspositionTable>) -> Self {
         ChessBoard {
             board_width: 10,
             board_height: 12,
@@ -955,6 +1098,12 @@ impl Default for ChessBoard {
             },
 
             piece_list: PieceList::default(),
+
+            zobrist: zobrist_keys,
+
+            hash: 0,
+
+            transposition_table,
         }
     }
 }
@@ -962,16 +1111,73 @@ impl Default for ChessBoard {
 #[cfg(test)]
 mod chess_board_tests {
     use super::*;
+    use crate::game_state::GameState;
+
+    fn setup_game_with_fen(fen: &str) -> GameState {
+        let mut game = GameState::new(None);
+        game.set_fen_position(fen);
+        game
+    }
+
+    fn setup_game() -> GameState {
+        setup_game_with_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+    }
 
     #[test]
     fn algebraic_to_internal_convertion() {
-        let board = ChessBoard::default();
+        let board = setup_game().board;
 
         assert_eq!(board.algebraic_to_internal("e4"), 55);
         assert_eq!(board.algebraic_to_internal("a1"), 21);
         assert_eq!(board.algebraic_to_internal("a8"), 91);
         assert_eq!(board.algebraic_to_internal("h1"), 28);
         assert_eq!(board.algebraic_to_internal("h8"), 98);
+    }
+
+    fn assert_board_states_equal(b1: &ChessBoard, b2: &ChessBoard, msg: &str) {
+        // Compare critical board state components
+        assert_eq!(
+            b1.castling_rights, b2.castling_rights,
+            "{}: Castling rights mismatch",
+            msg
+        );
+        assert_eq!(
+            b1.en_passant_target, b2.en_passant_target,
+            "{}: En passant target mismatch",
+            msg
+        );
+        assert_eq!(b1.hash, b2.hash, "{}: Hash mismatch", msg);
+
+        // Compare piece positions
+        for square in 0..64 {
+            let internal_square = b1.map_inner_to_outer_board(square);
+            let piece1 = b1.get_piece_on_square(internal_square);
+            let piece2 = b2.get_piece_on_square(internal_square);
+            assert_eq!(
+                piece1, piece2,
+                "{}: Piece mismatch at square {}",
+                msg, square
+            );
+        }
+    }
+
+    #[test]
+    fn test_make_unmake_move() {
+        let game =
+            setup_game_with_fen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1");
+        let mut board = game.board;
+        let original_board = board.clone();
+
+        let mv = board.from_uci("c7c5").unwrap();
+
+        // First make move
+        board.make_move(&mv);
+
+        // Undo move
+        board.unmake_move(&mv);
+
+        // Board state should be the same
+        assert_board_states_equal(&board, &original_board, "test_make_unmake_move");
     }
 }
 
@@ -980,11 +1186,15 @@ mod castling_tests {
     use super::*;
     use crate::game_state::GameState;
 
+    fn setup_game_with_fen(fen: &str) -> GameState {
+        let mut game = GameState::new(None);
+        game.set_fen_position(fen);
+        game
+    }
+
     #[test]
     fn test_castling_move_execution() {
-        let mut game = GameState::default();
-        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
-        game.board.print_board();
+        let mut game = setup_game_with_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
 
         // Execute kingside castling
         game.make_move("e1g1");
@@ -1019,8 +1229,7 @@ mod castling_tests {
 
     #[test]
     fn test_castling_unmake() {
-        let mut game = GameState::default();
-        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+        let mut game = setup_game_with_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
 
         let initial_board = game.board.board_squares;
         let initial_castling = game.board.castling_rights;
@@ -1039,8 +1248,7 @@ mod castling_tests {
 
     #[test]
     fn test_complete_castling_scenario() {
-        let mut game = GameState::default();
-        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+        let mut game = setup_game_with_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
 
         // White castles kingside
         game.make_move("e1g1");
@@ -1072,10 +1280,15 @@ mod can_castle_queenside_tests {
     use super::*;
     use crate::game_state::GameState;
 
+    fn setup_game_with_fen(fen: &str) -> GameState {
+        let mut game = GameState::new(None);
+        game.set_fen_position(fen);
+        game
+    }
+
     #[test]
     fn test_can_castle_queenside_normal() {
-        let mut game = GameState::default();
-        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+        let game = setup_game_with_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
 
         // White should be able to castle queenside
         assert!(game.board.can_castle_queenside(
@@ -1094,8 +1307,7 @@ mod can_castle_queenside_tests {
 
     #[test]
     fn test_cannot_castle_queenside_if_king_moved() {
-        let mut game = GameState::default();
-        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+        let mut game = setup_game_with_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
 
         // Simulate king moved by removing castling rights
         game.board.castling_rights.white_queenside = false;
@@ -1109,8 +1321,7 @@ mod can_castle_queenside_tests {
 
     #[test]
     fn test_cannot_castle_queenside_if_rook_moved() {
-        let mut game = GameState::default();
-        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+        let mut game = setup_game_with_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
 
         // Simulate rook moved by removing castling rights
         game.board.castling_rights.white_queenside = false;
@@ -1124,8 +1335,7 @@ mod can_castle_queenside_tests {
 
     #[test]
     fn test_cannot_castle_queenside_if_squares_occupied() {
-        let mut game = GameState::default();
-        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R1B1K2R w KQkq - 0 1");
+        let game = setup_game_with_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R1B1K2R w KQkq - 0 1");
 
         // Bishop on c1 blocks queenside castling
         assert!(!game.board.can_castle_queenside(
@@ -1137,8 +1347,7 @@ mod can_castle_queenside_tests {
 
     #[test]
     fn test_cannot_castle_queenside_through_check() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/8/8/2n5/8/R3K3 w - - 0 1");
+        let game = setup_game_with_fen("8/8/8/8/8/2n5/8/R3K3 w - - 0 1");
 
         // Black knight attacks d1, which king moves through
         assert!(!game.board.can_castle_queenside(
@@ -1150,8 +1359,7 @@ mod can_castle_queenside_tests {
 
     #[test]
     fn test_cannot_castle_queenside_if_in_check() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/8/7b/8/8/R3K3 w - - 0 1");
+        let game = setup_game_with_fen("8/8/8/8/7b/8/8/R3K3 w - - 0 1");
 
         // Black bishop attacks e1 (king is in check)
         assert!(!game.board.can_castle_queenside(
@@ -1163,8 +1371,7 @@ mod can_castle_queenside_tests {
 
     #[test]
     fn test_cannot_castle_queenside_if_pieces_missing() {
-        let mut game = GameState::default();
-        game.set_fen_position("4k3/pppppppp/8/8/8/8/PPPPPPPP/4K3 w - - 0 1");
+        let game = setup_game_with_fen("4k3/pppppppp/8/8/8/8/PPPPPPPP/4K3 w - - 0 1");
 
         // No rook on a1
         assert!(!game.board.can_castle_queenside(
@@ -1176,8 +1383,7 @@ mod can_castle_queenside_tests {
 
     #[test]
     fn test_cannot_castle_queenside_wrong_color() {
-        let mut game = GameState::default();
-        game.set_fen_position("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+        let game = setup_game_with_fen("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
 
         // Black pieces on white squares shouldn't allow white to castle
         assert!(!game.board.can_castle_queenside(
@@ -1185,5 +1391,383 @@ mod can_castle_queenside_tests {
             game.board.algebraic_to_internal("e1"), // white king
             game.board.algebraic_to_internal("a8")  // black rook - WRONG ROOK!
         ));
+    }
+}
+
+#[cfg(test)]
+mod zobrist_tests {
+    use super::*;
+    use crate::GameState;
+
+    fn setup_game_with_fen(fen: &str) -> GameState {
+        let mut game = GameState::new(None);
+        game.set_fen_position(fen);
+        game
+    }
+
+    fn create_test_board() -> ChessBoard {
+        let mut game = GameState::new(None);
+        game.set_fen_position("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        game.board
+    }
+
+    #[test]
+    fn test_initial_position_hash_consistency() {
+        let board = create_test_board();
+        let hash1 = board.zobrist_hash(Color::White);
+        let hash2 = board.zobrist_hash(Color::White);
+
+        assert_eq!(hash1, hash2, "Initial position hash should be consistent");
+    }
+
+    #[test]
+    fn test_hash_changes_with_side_to_move() {
+        let board = create_test_board();
+        let white_hash = board.zobrist_hash(Color::White);
+        let black_hash = board.zobrist_hash(Color::Black);
+
+        assert_ne!(
+            white_hash, black_hash,
+            "Hash should change with side to move"
+        );
+
+        // Test that XORing side_to_move flips correctly
+        let side_to_move_key = board.zobrist.side_to_move;
+        assert_eq!(
+            white_hash ^ side_to_move_key,
+            black_hash,
+            "XOR side_to_move should flip colors"
+        );
+    }
+
+    #[test]
+    fn test_pawn_move_hash_update() {
+        let mut board = create_test_board();
+        let initial_hash = board.hash;
+
+        // Create a pawn move (e2 to e4)
+        let mv = Move {
+            from: board.algebraic_to_internal("e2"),
+            to: board.algebraic_to_internal("e4"),
+            piece: Piece::WhitePawn,
+            captured_piece: Piece::EmptySquare,
+            promotion: None,
+            castling: None,
+            en_passant: false,
+            en_passant_square: Some(board.algebraic_to_internal("e3")),
+            previous_en_passant: None,
+            previous_castling_rights: Some(board.castling_rights.clone()),
+        };
+
+        board.update_hash(&mv);
+        let after_move_hash = board.hash;
+
+        assert_ne!(
+            initial_hash, after_move_hash,
+            "Hash should change after pawn move"
+        );
+
+        // Test unmake
+        board.update_hash(&mv);
+        assert_eq!(initial_hash, board.hash, "Hash should restore after unmake");
+    }
+
+    #[test]
+    fn test_capture_hash_update() {
+        // Set up a position where capture is possible
+        // For example, after 1.e4 e5 2.Nf3 Nc6 3.Bb5 a6
+        // Then capture on c6: Bxc6
+        let game = setup_game_with_fen(
+            "r1bqkbnr/1ppp1ppp/p1n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1",
+        );
+
+        let mut board = game.board;
+        let mv = board.from_uci("b5c6").unwrap();
+
+        let initial_hash = board.hash;
+
+        board.make_move(&mv);
+
+        let after_capture_hash = board.hash;
+
+        assert_ne!(
+            initial_hash, after_capture_hash,
+            "Hash should change after capture"
+        );
+
+        // Test unmake
+        board.unmake_move(&mv);
+        assert_eq!(
+            initial_hash, board.hash,
+            "Hash should restore after unmake capture"
+        );
+    }
+
+    #[test]
+    fn test_castling_rights_loss_hash() {
+        let game = setup_game_with_fen("r3k2r/pp2pppp/8/8/8/8/PPP2PPP/R3K2R w KQkq - 0 1");
+
+        let mut board = game.board;
+        let mv = board.from_uci("e1e2").unwrap();
+
+        let initial_hash = board.hash;
+
+        // King move should remove castling rights
+        board.make_move(&mv);
+
+        // Hash should change due to both piece move and castling rights change
+        let after_king_move_hash = board.hash;
+        assert_ne!(
+            initial_hash, after_king_move_hash,
+            "Hash should change when castling rights are lost"
+        );
+
+        // Test unmake restores original hash
+        board.unmake_move(&mv);
+        assert_eq!(
+            initial_hash, board.hash,
+            "Hash should restore after unmaking king move with castling rights change"
+        );
+    }
+
+    #[test]
+    fn test_rook_move_castling_rights_hash() {
+        let game = setup_game_with_fen("r3k2r/pp2pppp/8/8/8/8/PPP2PPP/R3K2R w KQkq - 0 1");
+
+        let mut board = game.board;
+        let mv = board.from_uci("a1a2").unwrap();
+
+        let initial_hash = board.hash;
+
+        // Moving queenside rook should remove queenside castling right
+        board.make_move(&mv);
+
+        let after_rook_move_hash = board.hash;
+
+        assert_ne!(
+            initial_hash, after_rook_move_hash,
+            "Hash should change when rook move removes castling right"
+        );
+
+        board.unmake_move(&mv);
+        assert_eq!(
+            initial_hash, board.hash,
+            "Hash should restore after unmaking rook move"
+        );
+    }
+
+    #[test]
+    fn test_castling_move_hash() {
+        let game = setup_game_with_fen("r3k2r/pp2pppp/8/8/8/8/PPP2PPP/R3K2R w KQkq - 0 1");
+
+        let mut board = game.board;
+        let mv = board.from_uci("e1g1").unwrap();
+
+        let initial_hash = board.hash;
+
+        board.make_move(&mv);
+
+        let after_castling_hash = board.hash;
+
+        assert_ne!(
+            initial_hash, after_castling_hash,
+            "Hash should change after castling move"
+        );
+
+        board.unmake_move(&mv);
+        assert_eq!(
+            initial_hash, board.hash,
+            "Hash should restore after unmaking castling move"
+        );
+    }
+
+    #[test]
+    fn test_en_passant_hash() {
+        let game =
+            setup_game_with_fen("rnbqkbnr/pp2pppp/8/2ppP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 1");
+
+        let mut board = game.board;
+        let mv = board.from_uci("e5d6").unwrap(); // Capturing en passant
+
+        let initial_hash = board.hash;
+
+        board.make_move(&mv);
+
+        let after_ep_hash = board.hash;
+
+        assert_ne!(
+            initial_hash, after_ep_hash,
+            "Hash should change after en passant capture"
+        );
+
+        board.unmake_move(&mv);
+        assert_eq!(
+            initial_hash, board.hash,
+            "Hash should restore after unmaking en passant"
+        );
+    }
+
+    #[test]
+    fn test_promotion_hash() {
+        // Set up promotion situation - white pawn on 7th rank
+        let game = setup_game_with_fen("r4rk1/1p2Pppp/p7/2P1n3/8/B7/P4PPP/R4RK1 b KQkq - 0 1");
+
+        let mut board = game.board;
+        let mv = board.from_uci("e7e8q").unwrap();
+
+        let initial_hash = board.hash;
+
+        board.make_move(&mv);
+
+        let after_promotion_hash = board.hash;
+
+        assert_ne!(
+            initial_hash, after_promotion_hash,
+            "Hash should change after promotion"
+        );
+
+        board.unmake_move(&mv);
+        assert_eq!(
+            initial_hash, board.hash,
+            "Hash should restore after unmaking promotion"
+        );
+    }
+
+    #[test]
+    fn test_en_passant_target_file_hash() {
+        let mut board = create_test_board();
+        let initial_hash = board.hash;
+
+        // Test that setting en passant target file affects hash
+        let target_square = board.algebraic_to_internal("e3");
+        let file = board.square_file(target_square) - (board.board_width - 8) / 2;
+
+        // XOR in the en passant file
+        board.hash ^= board.zobrist.en_passant[file as usize];
+        let with_ep_hash = board.hash;
+
+        assert_ne!(
+            initial_hash, with_ep_hash,
+            "Hash should change when en passant target is set"
+        );
+
+        // XOR out to restore
+        board.hash ^= board.zobrist.en_passant[file as usize];
+        assert_eq!(
+            initial_hash, board.hash,
+            "Hash should restore when en passant target is cleared"
+        );
+    }
+
+    #[test]
+    fn test_multiple_moves_hash_consistency() {
+        let game = setup_game_with_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+
+        let mut board = game.board;
+
+        let initial_hash = board.hash;
+        // Make a series of moves and unmakes, hash should always restore
+        let test_moves = vec!["e2e4", "c7c5", "g1f3", "b8c6"];
+
+        for uci_mv in &test_moves {
+            let mv = board.from_uci(uci_mv).unwrap();
+
+            let before_move_hash = board.hash;
+            board.make_move(&mv);
+            let after_move_hash = board.hash;
+
+            assert_ne!(
+                before_move_hash, after_move_hash,
+                "Hash should change after each move"
+            );
+
+            board.unmake_move(&mv);
+            assert_eq!(
+                before_move_hash, board.hash,
+                "Hash should restore after unmaking each move"
+            );
+        }
+
+        assert_eq!(
+            initial_hash, board.hash,
+            "Hash should be back to initial after all moves unmade"
+        );
+    }
+
+    #[test]
+    fn test_zobrist_structure_initialization() {
+        let zobrist = Zobrist::new();
+
+        // Verify all arrays are initialized with non-zero values
+        assert_ne!(zobrist.side_to_move, 0, "Side to move should be non-zero");
+
+        for i in 0..4 {
+            assert_ne!(
+                zobrist.castling_rights[i], 0,
+                "Castling right {} should be non-zero",
+                i
+            );
+        }
+
+        for i in 0..8 {
+            assert_ne!(
+                zobrist.en_passant[i], 0,
+                "En passant file {} should be non-zero",
+                i
+            );
+        }
+
+        // Check pieces array
+        for square in 0..64 {
+            for piece in 0..12 {
+                assert_ne!(
+                    zobrist.pieces[square][piece], 0,
+                    "Piece at square {}, type {} should be non-zero",
+                    square, piece
+                );
+            }
+        }
+
+        // Verify uniqueness (with high probability)
+        let mut values = std::collections::HashSet::new();
+
+        values.insert(zobrist.side_to_move);
+        for &val in &zobrist.castling_rights {
+            values.insert(val);
+        }
+        for &val in &zobrist.en_passant {
+            values.insert(val);
+        }
+        for square in 0..64 {
+            for piece in 0..12 {
+                values.insert(zobrist.pieces[square][piece]);
+            }
+        }
+
+        // With 64*12 + 4 + 8 + 1 = 781 values, collisions are extremely unlikely
+        let expected_unique = 64 * 12 + 4 + 8 + 1;
+        assert_eq!(
+            values.len(),
+            expected_unique,
+            "All Zobrist values should be unique"
+        );
+    }
+
+    #[test]
+    fn test_hash_symmetry_operations() {
+        let mut board = create_test_board();
+        let original_hash = board.hash;
+
+        // Test that XOR operations are symmetric
+        let test_value = 0x1234567890ABCDEF;
+
+        board.hash ^= test_value;
+        assert_ne!(original_hash, board.hash, "Hash should change after XOR");
+
+        board.hash ^= test_value;
+        assert_eq!(
+            original_hash, board.hash,
+            "Hash should restore after second XOR"
+        );
     }
 }

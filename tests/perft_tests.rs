@@ -1,11 +1,9 @@
-use enrust::game_state::GameState;
-
 #[cfg(test)]
 mod perft_tests {
-    use super::*;
+    use enrust::game_state::GameState;
 
     fn run_perft_test(fen: &str, depth: u64, expected_nodes: u64) {
-        let mut game = GameState::default();
+        let mut game = GameState::new(None);
         assert!(game.set_fen_position(fen), "Failed to set FEN: {}", fen);
 
         let nodes = game.perft_debug(depth, false);

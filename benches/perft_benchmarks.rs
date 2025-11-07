@@ -12,7 +12,7 @@ fn main() {
     args = [1, 2, 3, 4], // Different depths
 )]
 fn bench_perft_different_depths(bencher: Bencher, depth: u64) {
-    let mut game = GameState::default();
+    let mut game = GameState::new(None);
     game.set_fen_position("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
     bencher.bench_local(|| game.perft_debug(depth, false));
@@ -27,7 +27,9 @@ fn bench_perft_different_depths(bencher: Bencher, depth: u64) {
 )]
 fn bench_perft_multiple_positions(bencher: Bencher, params: (&str, u64)) {
     let (fen, depth) = params;
-    let mut game = GameState::default();
+
+    let mut game = GameState::new(None);
+
     game.set_fen_position(fen);
 
     bencher.bench_local(|| game.perft_debug(depth, false));
@@ -43,7 +45,8 @@ fn bench_perft_multiple_positions(bencher: Bencher, params: (&str, u64)) {
 )]
 fn benchmark_perft_nps(params: (&str, u32, u64)) {
     let (fen, measured_runs, depth) = params;
-    let mut game = GameState::default();
+
+    let mut game = GameState::new(None);
     game.set_fen_position(fen);
 
     let mut durations = Vec::new();

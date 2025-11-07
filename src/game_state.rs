@@ -16,6 +16,7 @@ pub use board::CastlingRights;
 pub use board::ChessBoard;
 pub use board::moves::Move;
 pub use board::piece::{Color, Piece};
+pub use board::transposition_table::{TranspositionTable, Zobrist};
 
 /// Configuration for search parameters and time control.
 ///
@@ -213,8 +214,6 @@ impl GameState {
             return false;
         }
 
-        self.board.set_board(&board_8x8);
-
         // Side to move
         if let Some(side_to_move) = fen.next() {
             match side_to_move {
@@ -299,6 +298,8 @@ impl GameState {
         }
 
         self.ply_moves = total_moves;
+
+        self.board.set_board(&board_8x8, self.side_to_move);
 
         true
     }
@@ -486,17 +487,29 @@ impl GameState {
     pub fn get_chess_board(&self) -> &ChessBoard {
         &self.board
     }
-}
 
-impl Default for GameState {
-    /// Creates a default game state with standard starting position.
-    fn default() -> Self {
+    pub fn resize_hash_table(&mut self, new_size_mb: usize) {
+        let transposition_table = Arc::new(TranspositionTable::new(new_size_mb));
+
+        self.board.set_transposition_table(transposition_table);
+    }
+
+    /// Creates a default game state passing the zobrist keys and transposition table structure to be used
+    pub fn new(table_size_mb: Option<usize>) -> Self {
+        // 1. Create the zobrist keys once.
+        // Wrap it in Arc<> to enable shared read access
+        let zobrist_keys = Arc::new(Zobrist::new());
+
+        // 2. Create the transposition table once
+        let table_size = table_size_mb.unwrap_or(0);
+        let transposition_table = Arc::new(TranspositionTable::new(table_size));
+
         GameState {
             ply_moves: 0,
             side_to_move: Color::White,
             search_control: None,
             stop_flag: Arc::new(AtomicBool::new(false)),
-            board: ChessBoard::default(),
+            board: ChessBoard::new(zobrist_keys, transposition_table),
         }
     }
 }
@@ -528,7 +541,7 @@ impl Default for GameState {
 /// 7. Engine responds with `bestmove` when search completes
 /// 8. Process repeats until `quit` command
 pub fn uci_main() {
-    let mut game_state = GameState::default();
+    let mut game_state = GameState::new(Some(256));
 
     // Main UCI protocol loop
     loop {
@@ -596,6 +609,11 @@ pub fn uci_main() {
 
                 "stop" => {
                     game_state.stop_search();
+                }
+
+                "setoption" => {
+                    // Configure engine based on the GUI parameters
+                    uci::handle_setoption_command(&mut game_state, &mut uci_cmd);
                 }
 
                 // This is not a uci command, is my way of printing the board

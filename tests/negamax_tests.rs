@@ -9,8 +9,8 @@ mod negamax_tests {
     use enrust::game_state::board::search::*;
 
     fn setup_test_game(fen: &str) -> ChessBoard {
-        let mut game = GameState::default();
-        assert!(game.set_fen_position(fen), "Failed to set FEN: {}", fen);
+        let mut game = GameState::new(None);
+        game.set_fen_position(fen);
         game.get_chess_board().clone()
     }
 

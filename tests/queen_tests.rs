@@ -2,10 +2,15 @@
 mod queen_tests {
     use enrust::game_state::GameState;
 
+    fn setup_game_with_fen(fen: &str) -> GameState {
+        let mut game = GameState::new(None);
+        game.set_fen_position(fen);
+        game
+    }
+
     #[test]
     fn test_queen_moves_center() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/8/3Q4/8/8/8/8 w - - 0 1");
+        let mut game = setup_game_with_fen("8/8/8/3Q4/8/8/8/8 w - - 0 1");
 
         let moves = game.generate_moves();
         assert_eq!(moves.len(), 27); // Queen in center has 27 moves
@@ -19,8 +24,7 @@ mod queen_tests {
 
     #[test]
     fn test_queen_captures() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/2ppp3/2pQp3/2ppp3/8/8/8 w - - 0 1");
+        let mut game = setup_game_with_fen("8/8/2ppp3/2pQp3/2ppp3/8/8/8 w - - 0 1");
 
         let moves = game.generate_moves();
         // Should have 8 captures (all diagonals and orthogonals)
@@ -29,8 +33,7 @@ mod queen_tests {
 
     #[test]
     fn test_queen_blocked() {
-        let mut game = GameState::default();
-        game.set_fen_position("8/8/2PPP3/2PQP3/2PPP3/8/8/8 w - - 0 1");
+        let mut game = setup_game_with_fen("8/8/2PPP3/2PQP3/2PPP3/8/8/8 w - - 0 1");
 
         let moves = game.generate_moves();
         let queen_moves = moves.iter().filter(|m| m.contains("d5")).count();
