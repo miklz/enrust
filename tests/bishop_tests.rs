@@ -38,10 +38,10 @@ mod bishop_tests {
             .filter(|m| {
                 let target = &m[2..4];
                 // Light squares: a8, c6, e4, g2, etc.
-                (target.chars().next().unwrap() as u8 - b'a' + target.chars().nth(1).unwrap() as u8
+                !(target.chars().next().unwrap() as u8 - b'a'
+                    + target.chars().nth(1).unwrap() as u8
                     - b'1')
-                    % 2
-                    != 0
+                    .is_multiple_of(2)
             })
             .count();
 

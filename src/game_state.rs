@@ -536,8 +536,12 @@ impl GameState {
             side_to_move: Color::White,
             search_control: None,
             stop_flag: Arc::new(AtomicBool::new(false)),
-            board: ChessBoard::new(zobrist_keys, transposition_table),
             search_algorithm: Arc::new(IterativeDeepening::new(MinimaxAlphaBeta, 5)),
+            board: ChessBoard::new(
+                zobrist_keys,
+                transposition_table,
+                Arc::new(board::evaluation::CompositeEvaluator::default()),
+            ),
         }
     }
 }

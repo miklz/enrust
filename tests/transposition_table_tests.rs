@@ -393,8 +393,8 @@ mod transposition_logic_tests {
                 previous_castling_rights: None,
             };
 
-            let packed = original_move.encode(&game.get_chess_board());
-            let unpacked = Move::decode(packed, &game.get_chess_board()).unwrap();
+            let packed = original_move.encode(game.get_chess_board());
+            let unpacked = Move::decode(packed, game.get_chess_board()).unwrap();
             // Verify compact move contains correct information
             assert_eq!(original_move.from, unpacked.from);
             assert_eq!(original_move.to, unpacked.to);

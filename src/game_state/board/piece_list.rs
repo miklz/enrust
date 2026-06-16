@@ -1266,6 +1266,47 @@ impl PieceList {
         None
     }
 
+    /// Calls a closure for every piece on the board.
+    ///
+    /// # Arguments
+    ///
+    /// * `f` - Closure receiving the [`Piece`] type and its mailbox square
+    pub fn for_each_piece(&self, mut f: impl FnMut(Piece, i16)) {
+        let all_lists: [&Vec<i16>; 12] = [
+            &self.white_pawn_list,
+            &self.white_knight_list,
+            &self.white_bishop_list,
+            &self.white_rook_list,
+            &self.white_queen_list,
+            &self.white_king_list,
+            &self.black_pawn_list,
+            &self.black_knight_list,
+            &self.black_bishop_list,
+            &self.black_rook_list,
+            &self.black_queen_list,
+            &self.black_king_list,
+        ];
+        let all_pieces: [Piece; 12] = [
+            Piece::WhitePawn,
+            Piece::WhiteKnight,
+            Piece::WhiteBishop,
+            Piece::WhiteRook,
+            Piece::WhiteQueen,
+            Piece::WhiteKing,
+            Piece::BlackPawn,
+            Piece::BlackKnight,
+            Piece::BlackBishop,
+            Piece::BlackRook,
+            Piece::BlackQueen,
+            Piece::BlackKing,
+        ];
+        for (list, piece) in all_lists.iter().zip(all_pieces.iter()) {
+            for &sq in *list {
+                f(*piece, sq);
+            }
+        }
+    }
+
     /// Checks if a bishop can attack from one square to another.
     ///
     /// Verifies that the move is diagonal and that no pieces block the path.

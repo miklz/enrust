@@ -8,6 +8,7 @@
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
+pub mod evaluation;
 pub mod moves;
 pub mod piece;
 pub mod piece_list;
@@ -16,6 +17,7 @@ pub mod transposition_table;
 
 use crate::game_state::board::search::Search;
 
+use evaluation::Evaluator;
 use moves::Move;
 use piece::{Color, Piece, PieceType};
 use piece_list::PieceList;
@@ -82,78 +84,22 @@ pub struct ChessBoard {
 
     /// Transposition Table
     transposition_table: Arc<TranspositionTable>,
+
+    /// Positional evaluator (material, PST, etc.)
+    evaluator: Arc<dyn Evaluator>,
 }
 
 impl ChessBoard {
-    /// Calculates the material score for the current board position.
+    /// Evaluates the current board position using the configured evaluator.
     ///
-    /// Uses standard chess piece values:
-    /// - King: 20000
-    /// - Queen: 900
-    /// - Rook: 500
-    /// - Bishop/Knight: 300
-    /// - Pawn: 100
-    ///
-    /// # Arguments
-    ///
-    /// * `piece_list` - Reference to the piece list to evaluate
-    ///
-    /// # Returns
-    ///
-    /// Material score from white's perspective (positive if white has advantage)
-    fn material_score(&self, piece_list: &PieceList) -> i16 {
-        // count pieces
-        let w_king = piece_list
-            .get_number_of_pieces(Piece::WhiteKing)
-            .unwrap_or(0);
-        let b_king = piece_list
-            .get_number_of_pieces(Piece::BlackKing)
-            .unwrap_or(0);
-        let w_queen = piece_list
-            .get_number_of_pieces(Piece::WhiteQueen)
-            .unwrap_or(0);
-        let b_queen = piece_list
-            .get_number_of_pieces(Piece::BlackQueen)
-            .unwrap_or(0);
-        let w_rook = piece_list
-            .get_number_of_pieces(Piece::WhiteRook)
-            .unwrap_or(0);
-        let b_rook = piece_list
-            .get_number_of_pieces(Piece::BlackRook)
-            .unwrap_or(0);
-        let w_bishop = piece_list
-            .get_number_of_pieces(Piece::WhiteBishop)
-            .unwrap_or(0);
-        let b_bishop = piece_list
-            .get_number_of_pieces(Piece::BlackBishop)
-            .unwrap_or(0);
-        let w_knight = piece_list
-            .get_number_of_pieces(Piece::WhiteKnight)
-            .unwrap_or(0);
-        let b_kinght = piece_list
-            .get_number_of_pieces(Piece::BlackKnight)
-            .unwrap_or(0);
-        let w_pawn = piece_list
-            .get_number_of_pieces(Piece::WhitePawn)
-            .unwrap_or(0);
-        let b_pawn = piece_list
-            .get_number_of_pieces(Piece::BlackPawn)
-            .unwrap_or(0);
-
-        20000 * (w_king - b_king)
-            + 900 * (w_queen - b_queen)
-            + 500 * (w_rook - b_rook)
-            + 300 * (w_bishop - b_bishop + w_knight - b_kinght)
-            + 100 * (w_pawn - b_pawn)
-    }
-
-    /// Evaluates the current board position using material counting.
+    /// Delegates to the internal [`Evaluator`] which aggregates heuristic
+    /// components (material, PST, etc.).
     ///
     /// # Returns
     ///
     /// Score from white's perspective (positive if white is winning)
     pub fn evaluate(&self) -> i16 {
-        self.material_score(&self.piece_list)
+        self.evaluator.evaluate(self)
     }
 
     /// Checks if the given color is in checkmate.
@@ -1088,7 +1034,20 @@ impl ChessBoard {
     }
 
     /// Create board passing the zobrist keys to be used and the transposition table structure
-    pub fn new(zobrist_keys: Arc<Zobrist>, transposition_table: Arc<TranspositionTable>) -> Self {
+    /// Creates a new chess board with the given zobrist keys and
+    /// transposition table. The evaluator defaults to a composite
+    /// evaluator with material and piece-square heuristics.
+    ///
+    /// # Arguments
+    ///
+    /// * `zobrist_keys` - Shared zobrist random numbers
+    /// * `transposition_table` - Shared transposition table
+    /// * `evaluator` - Evaluation function (composite or custom)
+    pub fn new(
+        zobrist_keys: Arc<Zobrist>,
+        transposition_table: Arc<TranspositionTable>,
+        evaluator: Arc<dyn Evaluator>,
+    ) -> Self {
         ChessBoard {
             board_width: 10,
             board_height: 12,
@@ -1109,6 +1068,8 @@ impl ChessBoard {
             hash: 0,
 
             transposition_table,
+
+            evaluator,
         }
     }
 }
@@ -1461,7 +1422,7 @@ mod zobrist_tests {
             en_passant: false,
             en_passant_square: Some(board.algebraic_to_internal("e3")),
             previous_en_passant: None,
-            previous_castling_rights: Some(board.castling_rights.clone()),
+            previous_castling_rights: Some(board.castling_rights),
         };
 
         board.update_hash(&mv);
