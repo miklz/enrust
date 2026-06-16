@@ -7,14 +7,38 @@ repos:
       - id: check-yaml
       - id: check-added-large-files
 
-  - repo: https://github.com/doublify/pre-commit-rust
-    rev: v1.0
-    hooks:
-      - id: fmt
-      - id: cargo-check
-
   # TOML Formatter for Cargo.toml files
   - repo: https://github.com/ComPWA/mirrors-taplo
     rev: v0.9.3
     hooks:
       - id: taplo-format
+    rev: v4.6.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: local
+    hooks:
+      - id: rustfmt
+        name: cargo fmt
+        description: Check code formatting using rustfmt.
+        entry: cargo fmt --
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: clippy
+        name: cargo clippy fix
+        description: Lint and auto-fix Rust code using clippy.
+        entry: cargo clippy --fix --allow-no-vcs --all-targets -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.17
+    hooks:
+      - id: ruff-check
+        args: [ --fix ]
+      - id: ruff-format
