@@ -21,6 +21,8 @@ pub use board::transposition_table::{TranspositionTable, Zobrist};
 
 use board::search::MinimaxAlphaBeta;
 
+use crate::game_state::board::search::IterativeDeepening;
+
 /// Configuration for search parameters and time control.
 ///
 /// Used to configure the engine's search behavior according to UCI protocol
@@ -535,7 +537,7 @@ impl GameState {
             search_control: None,
             stop_flag: Arc::new(AtomicBool::new(false)),
             board: ChessBoard::new(zobrist_keys, transposition_table),
-            search_algorithm: Arc::new(DepthFirst::new(MinimaxAlphaBeta, 5)),
+            search_algorithm: Arc::new(IterativeDeepening::new(MinimaxAlphaBeta, 5)),
         }
     }
 }
