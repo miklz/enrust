@@ -14,6 +14,8 @@ pub mod piece_list;
 pub mod search;
 pub mod transposition_table;
 
+use crate::game_state::board::search::Search;
+
 use moves::Move;
 use piece::{Color, Piece, PieceType};
 use piece_list::PieceList;
@@ -1010,17 +1012,20 @@ impl ChessBoard {
     /// # Arguments
     ///
     /// * `side_to_move` - Color to find the best move for
+    /// * `algorithm` - The search algorithm to use
     ///
     /// # Returns
     ///
     /// `Some(Move)` if a move is found, `None` if no moves available
-    pub fn search(&mut self, side_to_move: Color, stop_flag: Arc<AtomicBool>) -> Option<Move> {
-        // We clone the board so that the piece-list
-        // can do and undo moves to check for legal moves
+    pub fn search(
+        &mut self,
+        side_to_move: Color,
+        stop_flag: Arc<AtomicBool>,
+        algorithm: &dyn Search,
+    ) -> Option<Move> {
         let mut board_copy = self.clone();
 
-        let (_, best_move) =
-            search::minimax_alpha_beta_search(&mut board_copy, 5, side_to_move, stop_flag);
+        let (_, best_move) = algorithm.search(&mut board_copy, side_to_move, stop_flag);
         best_move
     }
 

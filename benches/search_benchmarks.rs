@@ -6,7 +6,7 @@ use enrust::game_state::ChessBoard;
 use enrust::game_state::Color;
 use enrust::game_state::GameState;
 use enrust::game_state::board::search::{
-    minimax_alpha_beta_search, pure_minimax_search, pure_negamax_search,
+    MinimaxAlphaBeta, PureMinimax, PureNegamax, SearchAlgorithm,
 };
 
 fn main() {
@@ -32,7 +32,7 @@ fn bench_minimax(bencher: Bencher, fen: &str) {
 
     let stop_flag = Arc::new(AtomicBool::new(false));
     bencher.bench_local(|| {
-        let (score, _) = pure_minimax_search(&mut game, 4, Color::White, stop_flag.clone());
+        let (score, _) = PureMinimax.search(&mut game, 4, Color::White, stop_flag.clone());
         black_box(score);
     });
 }
@@ -50,7 +50,7 @@ fn bench_negamax(bencher: Bencher, fen: &str) {
 
     let stop_flag = Arc::new(AtomicBool::new(false));
     bencher.bench_local(|| {
-        let (score, _) = pure_negamax_search(&mut game, 4, Color::White, stop_flag.clone());
+        let (score, _) = PureNegamax.search(&mut game, 4, Color::White, stop_flag.clone());
         black_box(score);
     });
 }
@@ -68,7 +68,7 @@ fn bench_minimax_alpha_beta(bencher: Bencher, fen: &str) {
 
     let stop_flag = Arc::new(AtomicBool::new(false));
     bencher.bench_local(|| {
-        let (score, _) = minimax_alpha_beta_search(&mut game, 4, Color::White, stop_flag.clone());
+        let (score, _) = MinimaxAlphaBeta.search(&mut game, 4, Color::White, stop_flag.clone());
         black_box(score);
     });
 }

@@ -1,512 +1,233 @@
-//! Chess search algorithms and evaluation functions.
+//! Chess search trait, orchestration strategies, and algorithm modules.
 //!
-//! This module implements various chess search algorithms including minimax,
-//! negamax, alpha-beta pruning, and quiescence search for stable positions.
+//! This module defines a two-layer search architecture:
+//!
+//! 1. **`SearchAlgorithm`** — low-level recursive tree search. Each algorithm
+//!    implements [`SearchAlgorithm::tree_search`] returning a side-relative score.
+//!    The root-level move iteration is provided by the default
+//!    [`SearchAlgorithm::search`] method.
+//! 2. **`Search`** — high-level orchestration (depth-first, iterative deepening).
+//!
+//! These layers are independent: any `SearchAlgorithm` can be plugged into any
+//! `Search` orchestrator without modification.
+
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::game_state::ChessBoard;
 use crate::game_state::Color;
 use crate::game_state::Move;
-use crate::game_state::board::transposition_table::{NodeType, TranspositionTableData};
 
-/// Pure minimax algorithm without optimization techniques.
-///
-/// Recursively evaluates all possible moves to a given depth using the
-/// minimax algorithm. White tries to maximize the score while Black tries
-/// to minimize it.
-///
-/// # Arguments
-///
-/// * `game` - Mutable reference to the chess board
-/// * `depth` - Search depth (number of plies to look ahead)
-/// * `side_to_move` - Color of the player to move
-///
-/// # Returns
-///
-/// Evaluation score from the perspective of the side to move
-fn pure_minimax(
-    game: &mut ChessBoard,
-    depth: u8,
-    side_to_move: Color,
-    stop_flag: Arc<AtomicBool>,
-) -> i16 {
-    if depth == 0 {
-        return game.evaluate();
-    }
+pub mod minimax_alpha_beta;
+pub mod pure_minimax;
+pub mod pure_negamax;
+pub mod quiescence;
 
-    let moves = game.generate_moves(side_to_move);
+pub use minimax_alpha_beta::MinimaxAlphaBeta;
+pub use pure_minimax::PureMinimax;
+pub use pure_negamax::PureNegamax;
 
-    match side_to_move {
-        // Maximizer (White)
-        Color::White => {
-            let mut max_eval = i16::MIN;
+/// Low-level recursive tree search algorithm.
+///
+/// Implementations provide [`tree_search`](Self::tree_search) to recursively
+/// evaluate the game tree at a given depth. The [`search`](Self::search) method
+/// has a default implementation that iterates over root moves and calls
+/// `tree_search` on each child position.
+pub trait SearchAlgorithm {
+    /// Recursively traverse the game tree to the given depth, returning a
+    /// side-relative score (positive = good for `side_to_move`).
+    ///
+    /// # Arguments
+    ///
+    /// * `board` - Mutable reference to the chess board
+    /// * `depth` - Search depth in plies
+    /// * `side_to_move` - Color of the player to move
+    /// * `stop_flag` - Atomic flag to abort the search early
+    ///
+    /// # Returns
+    ///
+    /// Side-relative evaluation score
+    fn tree_search(
+        &self,
+        board: &mut ChessBoard,
+        depth: u8,
+        side_to_move: Color,
+        stop_flag: Arc<AtomicBool>,
+    ) -> i16;
 
-            for mv in moves {
-                // Abruptly end the search if required
-                if stop_flag.load(Ordering::Acquire) {
-                    return max_eval;
+    /// Search for the best move at the root level.
+    ///
+    /// The default implementation iterates over root moves, makes each one,
+    /// calls [`tree_search`](Self::tree_search) on the resulting position,
+    /// and tracks the best move found.
+    ///
+    /// # Arguments
+    ///
+    /// * `board` - Mutable reference to the chess board
+    /// * `depth` - Search depth in plies
+    /// * `side_to_move` - Color of the player to move
+    /// * `stop_flag` - Atomic flag to abort the search early
+    ///
+    /// # Returns
+    ///
+    /// Tuple containing the best evaluation score (white-centric) and the
+    /// best move found
+    fn search(
+        &self,
+        board: &mut ChessBoard,
+        depth: u8,
+        side_to_move: Color,
+        stop_flag: Arc<AtomicBool>,
+    ) -> (i16, Option<Move>) {
+        let moves = board.generate_moves(side_to_move);
+        let mut best_move: Option<Move> = None;
+        let mut best_score: Option<i16> = None;
+
+        for mv in moves {
+            if stop_flag.load(Ordering::Acquire) {
+                if let Some(score) = best_score {
+                    let white_score = if side_to_move == Color::White {
+                        score
+                    } else {
+                        -score
+                    };
+                    return (white_score, best_move);
                 }
-
-                game.make_move(&mv);
-                let eval =
-                    pure_minimax(game, depth - 1, side_to_move.opposite(), stop_flag.clone());
-                game.unmake_move(&mv);
-
-                max_eval = max_eval.max(eval);
+                return (0, None);
             }
 
-            max_eval
-        }
-        // Minimizer (Black)
-        Color::Black => {
-            let mut min_eval = i16::MAX;
+            board.make_move(&mv);
+            let score =
+                -self.tree_search(board, depth - 1, side_to_move.opposite(), stop_flag.clone());
+            board.unmake_move(&mv);
 
-            for mv in moves {
-                // Abruptly end the search if required
-                if stop_flag.load(Ordering::Acquire) {
-                    return min_eval;
-                }
-
-                game.make_move(&mv);
-                let eval =
-                    pure_minimax(game, depth - 1, side_to_move.opposite(), stop_flag.clone());
-                game.unmake_move(&mv);
-
-                min_eval = min_eval.min(eval);
-            }
-
-            min_eval
-        }
-    }
-}
-
-/// Performs a complete minimax search and returns the best move.
-///
-/// # Arguments
-///
-/// * `game` - Mutable reference to the chess board
-/// * `depth` - Search depth (number of plies to look ahead)
-/// * `side_to_move` - Color of the player to move
-///
-/// # Returns
-///
-/// Tuple containing the best evaluation score and the best move found
-pub fn pure_minimax_search(
-    game: &mut ChessBoard,
-    depth: u8,
-    side_to_move: Color,
-    stop_flag: Arc<AtomicBool>,
-) -> (i16, Option<Move>) {
-    let mut best_score = if side_to_move == Color::White {
-        i16::MIN
-    } else {
-        i16::MAX
-    };
-    let mut best_move = None;
-
-    let moves = game.generate_moves(side_to_move);
-    for mv in &moves {
-        // Abruptly end the search if required
-        if stop_flag.load(Ordering::Acquire) {
-            return (best_score, best_move);
-        }
-
-        game.make_move(mv);
-        let score = pure_minimax(game, depth - 1, side_to_move.opposite(), stop_flag.clone());
-        game.unmake_move(mv);
-
-        if side_to_move == Color::White {
-            if score >= best_score {
-                best_score = score;
+            if best_score.is_none() || score > best_score.unwrap() {
+                best_score = Some(score);
                 best_move = Some(mv.clone());
             }
-        } else if score <= best_score {
-            best_score = score;
-            best_move = Some(mv.clone());
         }
-    }
 
-    // Return best move found, or none if no moves available
-    (best_score, best_move)
+        let best_score = best_score.unwrap_or(0);
+        let white_score = if side_to_move == Color::White {
+            best_score
+        } else {
+            -best_score
+        };
+
+        (white_score, best_move)
+    }
 }
 
-/// Negamax implementation of the minimax algorithm.
+/// High-level search strategy that orchestrates a [`SearchAlgorithm`].
 ///
-/// Uses a single recursive function for both players by negating scores
-/// at each recursion level. More elegant than separate min/max functions.
-///
-/// # Arguments
-///
-/// * `game` - Mutable reference to the chess board
-/// * `depth` - Search depth (negative for negamax convention)
-/// * `side_to_move` - Color of the player to move
-///
-/// # Returns
-///
-/// Evaluation score from the perspective of the side to move
-fn pure_negamax(
-    game: &mut ChessBoard,
-    depth: u8,
-    side_to_move: Color,
-    stop_flag: Arc<AtomicBool>,
-) -> i16 {
-    if depth == 0 {
-        let perspective = if side_to_move == Color::White { 1 } else { -1 };
-        return game.evaluate() * perspective;
-    }
-
-    let moves = game.generate_moves(side_to_move);
-    let mut score = i16::MIN + 1; // +1 to avoid overflow when negated
-
-    for mv in &moves {
-        // Abruptly end the search if required
-        if stop_flag.load(Ordering::Acquire) {
-            return score;
-        }
-
-        game.make_move(mv);
-        score = score.max(-pure_negamax(
-            game,
-            depth - 1,
-            side_to_move.opposite(),
-            stop_flag.clone(),
-        ));
-        game.unmake_move(mv);
-    }
-
-    score
+/// Strategies control how the algorithm is invoked — single-shot depth-first
+/// or across multiple iterations for iterative deepening.
+pub trait Search {
+    /// Perform the search and return the best move.
+    ///
+    /// # Arguments
+    ///
+    /// * `board` - Mutable reference to the chess board
+    /// * `side_to_move` - Color of the player to move
+    /// * `stop_flag` - Atomic flag to abort the search early
+    ///
+    /// # Returns
+    ///
+    /// Tuple containing the best evaluation score and the best move found
+    fn search(
+        &self,
+        board: &mut ChessBoard,
+        side_to_move: Color,
+        stop_flag: Arc<AtomicBool>,
+    ) -> (i16, Option<Move>);
 }
 
-/// Performs a complete negamax search and returns the best move.
+/// Single-shot search at a fixed depth.
 ///
-/// # Arguments
-///
-/// * `game` - Mutable reference to the chess board
-/// * `depth` - Search depth (number of plies to look ahead)
-/// * `side_to_move` - Color of the player to move
-///
-/// # Returns
-///
-/// Tuple containing the best evaluation score and the best move found
-pub fn pure_negamax_search(
-    game: &mut ChessBoard,
-    depth: u8,
-    side_to_move: Color,
-    stop_flag: Arc<AtomicBool>,
-) -> (i16, Option<Move>) {
-    let mut best_move = None;
-    let mut best_score = i16::MIN;
-
-    let moves = game.generate_moves(side_to_move);
-
-    for mv in &moves {
-        // Abruptly end the search if required
-        if stop_flag.load(Ordering::Acquire) {
-            return (best_score, best_move);
-        }
-
-        game.make_move(mv);
-        let score = -pure_negamax(game, depth - 1, side_to_move.opposite(), stop_flag.clone());
-        game.unmake_move(mv);
-        if score >= best_score {
-            best_move = Some(mv.clone());
-            best_score = score;
-        }
-    }
-
-    let perspective = if side_to_move == Color::White { 1 } else { -1 };
-    best_score *= perspective;
-
-    // Return best move found, or none if no moves available
-    (best_score, best_move)
+/// Delegates directly to the wrapped algorithm at `max_depth` with no
+/// iterative deepening.
+pub struct DepthFirst<A: SearchAlgorithm> {
+    max_depth: u8,
+    algorithm: A,
 }
 
-/// Minimax algorithm with alpha-beta pruning for improved performance.
-///
-/// Alpha-beta pruning eliminates branches that cannot influence the final
-/// decision, significantly reducing the number of positions evaluated.
-///
-/// # Arguments
-///
-/// * `game` - Mutable reference to the chess board
-/// * `depth` - Search depth (number of plies to look ahead)
-/// * `alpha` - Alpha value for pruning (best value maximizer can guarantee)
-/// * `beta` - Beta value for pruning (best value minimizer can guarantee)
-/// * `side_to_move` - Color of the player to move
-/// * `stop_flag` - Search control to force the end of search at any time
-///
-/// # Returns
-///
-/// Evaluation score from the perspective of the side to move
-fn minimax_alpha_beta(
-    game: &mut ChessBoard,
-    depth: u8,
-    mut alpha: i16,
-    mut beta: i16,
-    side_to_move: Color,
-    stop_flag: Arc<AtomicBool>,
-) -> i16 {
-    let mut best_move = None;
-
-    // Limit scope of transposition table borrow
-    {
-        // Get access to the transposition table
-        let transposition_table = &game.transposition_table;
-        // Check if we have seen this position already
-        if let Some(position) = transposition_table.retrieve_position(game.hash)
-            && position.depth >= depth
-        {
-            match position.node_type {
-                NodeType::Exact => return position.score,
-                NodeType::UpperBound => {
-                    if position.score <= beta {
-                        beta = position.score;
-                    }
-                }
-                NodeType::LowerBound => {
-                    if position.score >= alpha {
-                        alpha = position.score;
-                    }
-                }
-            }
-            if alpha >= beta {
-                return position.score;
-            }
-
-            // We can start the search with the previous best move found
-            best_move = Move::decode(position.best_move, game);
+impl<A: SearchAlgorithm> DepthFirst<A> {
+    /// Creates a new depth-first search strategy.
+    ///
+    /// # Arguments
+    ///
+    /// * `algorithm` - The tree search algorithm to use
+    /// * `max_depth` - Fixed search depth in plies
+    pub fn new(algorithm: A, max_depth: u8) -> Self {
+        DepthFirst {
+            max_depth,
+            algorithm,
         }
     }
+}
 
-    // Terminal node check - reached maximum depth
-    if depth == 0 {
-        return game.evaluate();
+impl<A: SearchAlgorithm> Search for DepthFirst<A> {
+    fn search(
+        &self,
+        board: &mut ChessBoard,
+        side_to_move: Color,
+        stop_flag: Arc<AtomicBool>,
+    ) -> (i16, Option<Move>) {
+        self.algorithm
+            .search(board, self.max_depth, side_to_move, stop_flag)
     }
+}
 
-    let mut node_type = NodeType::Exact;
-    let mut moves = game.generate_moves(side_to_move);
+/// Iterative deepening search strategy.
+///
+/// Searches from depth 1 up to `max_depth`, reusing the best move from
+/// the previous iteration as a starting point. Each iteration restarts
+/// the underlying algorithm at the progressively deeper depth.
+pub struct IterativeDeepening<A: SearchAlgorithm> {
+    max_depth: u8,
+    algorithm: A,
+}
 
-    // Sort moves from least interesting to more insteresting
-    moves.sort_by(|mv_a, mv_b| {
-        let mv_a_is_capture = mv_a.is_capture();
-        let mv_b_is_capture = mv_b.is_capture();
-
-        match (mv_a_is_capture, mv_b_is_capture) {
-            (true, false) => std::cmp::Ordering::Greater, // mv_a is a capture and mv_b is not
-            (false, true) => std::cmp::Ordering::Less,    // mv_b is a capture and mv_a is not
-            _ => std::cmp::Ordering::Equal,               // Both moves are equally good
+impl<A: SearchAlgorithm> IterativeDeepening<A> {
+    /// Creates a new iterative deepening search strategy.
+    ///
+    /// # Arguments
+    ///
+    /// * `algorithm` - The tree search algorithm to use
+    /// * `max_depth` - Maximum search depth in plies
+    pub fn new(algorithm: A, max_depth: u8) -> Self {
+        IterativeDeepening {
+            max_depth,
+            algorithm,
         }
-    });
-
-    if let Some(best_mv) = best_move.clone() {
-        // Insert previous best move found
-        moves.push(best_mv);
     }
+}
 
-    let final_score = if side_to_move == Color::White {
-        for mv in moves.into_iter().rev() {
-            // Abruptly end the search if required
+impl<A: SearchAlgorithm> Search for IterativeDeepening<A> {
+    fn search(
+        &self,
+        board: &mut ChessBoard,
+        side_to_move: Color,
+        stop_flag: Arc<AtomicBool>,
+    ) -> (i16, Option<Move>) {
+        let mut best_move = None;
+        let mut best_score = if side_to_move == Color::White {
+            i16::MIN
+        } else {
+            i16::MAX
+        };
+
+        for depth in 1..=self.max_depth {
             if stop_flag.load(Ordering::Acquire) {
-                return alpha;
-            }
-
-            game.make_move(&mv);
-            let eval = minimax_alpha_beta(
-                game,
-                depth - 1,
-                alpha,
-                beta,
-                side_to_move.opposite(),
-                stop_flag.clone(),
-            );
-            game.unmake_move(&mv);
-
-            if eval > alpha {
-                best_move = Some(mv);
-                alpha = eval;
-            }
-
-            // Beta cutoff - Black won't allow this line
-            if beta <= alpha {
-                node_type = NodeType::UpperBound;
                 break;
             }
-        }
-
-        alpha
-    } else {
-        for mv in moves.into_iter().rev() {
-            // Abruptly end the search if required
-            if stop_flag.load(Ordering::Acquire) {
-                return beta;
-            }
-
-            game.make_move(&mv);
-            let eval = minimax_alpha_beta(
-                game,
-                depth - 1,
-                alpha,
-                beta,
-                side_to_move.opposite(),
-                stop_flag.clone(),
-            );
-            game.unmake_move(&mv);
-
-            if eval < beta {
-                best_move = Some(mv);
-                beta = eval;
-            }
-
-            // Alpha cutoff - White won't allow this line
-            if beta <= alpha {
-                node_type = NodeType::LowerBound;
-                break;
-            }
-        }
-
-        beta
-    };
-
-    let encoded_move = if let Some(best_mv) = best_move {
-        best_mv.encode(game)
-    } else {
-        0
-    };
-
-    let transposition_table = &game.transposition_table;
-    transposition_table.save_position(
-        game.hash,
-        &TranspositionTableData {
-            depth,
-            score: final_score,
-            node_type,
-            best_move: encoded_move,
-            age: 0,
-        },
-    );
-
-    final_score
-}
-
-/// Performs a complete alpha-beta search and returns the best move.
-///
-/// This is the primary search function used by the chess engine.
-///
-/// # Arguments
-///
-/// * `game` - Mutable reference to the chess board
-/// * `depth` - Search depth (number of plies to look ahead)
-/// * `side_to_move` - Color of the player to move
-///
-/// # Returns
-///
-/// Tuple containing the best evaluation score and the best move found
-pub fn minimax_alpha_beta_search(
-    game: &mut ChessBoard,
-    depth: u8,
-    side_to_move: Color,
-    stop_flag: Arc<AtomicBool>,
-) -> (i16, Option<Move>) {
-    let mut best_score = if side_to_move == Color::White {
-        i16::MIN
-    } else {
-        i16::MAX
-    };
-    let mut best_move = None;
-
-    let mut alpha = i16::MIN;
-    let mut beta = i16::MAX;
-
-    let moves = game.generate_moves(side_to_move);
-
-    for mv in moves {
-        // Abruptly end the search if required
-        if stop_flag.load(Ordering::Acquire) {
-            return (best_score, best_move);
-        }
-
-        game.make_move(&mv);
-        let score = minimax_alpha_beta(
-            game,
-            depth - 1,
-            i16::MIN,
-            i16::MAX,
-            side_to_move.opposite(),
-            stop_flag.clone(),
-        );
-        game.unmake_move(&mv);
-
-        if side_to_move == Color::White {
-            if score >= alpha {
-                best_score = score;
-                best_move = Some(mv.clone());
-                alpha = score;
-            }
-        } else if score <= beta {
+            let (score, mv) = self
+                .algorithm
+                .search(board, depth, side_to_move, stop_flag.clone());
             best_score = score;
-            best_move = Some(mv.clone());
-            beta = score;
+            best_move = mv.or(best_move);
         }
+
+        (best_score, best_move)
     }
-
-    (best_score, best_move)
-}
-
-/// Quiescence search to stabilize evaluations in tactical positions.
-///
-/// Extends search beyond the normal depth limit to only consider captures
-/// and other forcing moves, preventing horizon effect problems where
-/// tactical sequences extend beyond the search depth.
-///
-/// # Arguments
-///
-/// * `chess_board` - Mutable reference to the chess board
-/// * `alpha` - Alpha value for pruning
-/// * `beta` - Beta value for pruning
-/// * `side_to_move` - Color of the player to move
-///
-/// # Returns
-///
-/// Stabilized evaluation score after considering captures
-pub fn quiescence(
-    chess_board: &mut ChessBoard,
-    mut alpha: i16,
-    beta: i16,
-    side_to_move: Color,
-) -> i16 {
-    // Evaluate the current (possibly noisy) position
-    let stand_pat = chess_board.evaluate();
-
-    // Beta cutoff - position is already good enough for the opponent
-    if stand_pat >= beta {
-        return beta;
-    }
-
-    // Update alpha if current position is better than known alpha
-    if stand_pat > alpha {
-        alpha = stand_pat;
-    }
-
-    // Only consider capture moves (quiets are skipped in quiescence search)
-    let captures = chess_board
-        .generate_moves(side_to_move)
-        .into_iter()
-        .filter(|mv| mv.is_capture())
-        .collect::<Vec<_>>();
-
-    for mv in captures {
-        chess_board.make_move(&mv);
-        let score = -quiescence(chess_board, -beta, -alpha, side_to_move.opposite());
-        chess_board.unmake_move(&mv);
-
-        if score >= beta {
-            return beta;
-        }
-        if score > alpha {
-            alpha = score;
-        }
-    }
-
-    alpha
 }
