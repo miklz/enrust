@@ -16,7 +16,10 @@ pub use board::CastlingRights;
 pub use board::ChessBoard;
 pub use board::moves::Move;
 pub use board::piece::{Color, Piece};
+pub use board::search::{DepthFirst, Search};
 pub use board::transposition_table::{TranspositionTable, Zobrist};
+
+use board::search::MinimaxAlphaBeta;
 
 /// Configuration for search parameters and time control.
 ///
@@ -129,6 +132,8 @@ pub struct GameState {
     stop_flag: Arc<AtomicBool>,
     /// The chess board with current position
     board: ChessBoard,
+    /// The search algorithm to use
+    search_algorithm: Arc<dyn Search + Send + Sync>,
 }
 
 impl GameState {
@@ -369,17 +374,19 @@ impl GameState {
         let side_to_move = self.side_to_move;
         self.stop_flag.store(false, Ordering::Release);
         let stop_flag_clone = Arc::clone(&self.stop_flag);
+        let algorithm = Arc::clone(&self.search_algorithm);
 
-        thread::spawn(
-            move || match board_copy.search(side_to_move, stop_flag_clone) {
+        thread::spawn(move || {
+            let (_, best_move) = algorithm.search(&mut board_copy, side_to_move, stop_flag_clone);
+            match best_move {
                 Some(mv) => {
                     println!("bestmove {}", board_copy.move_to_uci(&mv));
                 }
                 None => {
                     println!("bestmove 0000");
                 }
-            },
-        );
+            }
+        });
     }
 
     pub fn stop_search(&self) {
@@ -494,6 +501,24 @@ impl GameState {
         self.board.set_transposition_table(transposition_table);
     }
 
+    /// Sets the search algorithm to use for future searches.
+    ///
+    /// # Arguments
+    ///
+    /// * `algorithm` - The search algorithm implementation to use
+    pub fn set_search_algorithm(&mut self, algorithm: Arc<dyn Search + Send + Sync>) {
+        self.search_algorithm = algorithm;
+    }
+
+    /// Gets a reference to the current search algorithm.
+    ///
+    /// # Returns
+    ///
+    /// Reference to the current search algorithm implementation
+    pub fn get_search_algorithm(&self) -> &Arc<dyn Search + Send + Sync> {
+        &self.search_algorithm
+    }
+
     /// Creates a default game state passing the zobrist keys and transposition table structure to be used
     pub fn new(table_size_mb: Option<usize>) -> Self {
         // 1. Create the zobrist keys once.
@@ -510,6 +535,7 @@ impl GameState {
             search_control: None,
             stop_flag: Arc::new(AtomicBool::new(false)),
             board: ChessBoard::new(zobrist_keys, transposition_table),
+            search_algorithm: Arc::new(DepthFirst::new(MinimaxAlphaBeta, 5)),
         }
     }
 }

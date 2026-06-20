@@ -6,7 +6,7 @@ mod minimax_tests {
     use enrust::game_state::ChessBoard;
     use enrust::game_state::Color;
     use enrust::game_state::GameState;
-    use enrust::game_state::board::search::*;
+    use enrust::game_state::board::search::{PureMinimax, SearchAlgorithm};
 
     fn setup_test_game(fen: &str) -> ChessBoard {
         let mut game = GameState::new(None);
@@ -19,7 +19,7 @@ mod minimax_tests {
         let mut game = setup_test_game("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
         let stop_flag = Arc::new(AtomicBool::new(false));
-        let (score, best_move) = pure_minimax_search(&mut game, 1, Color::White, stop_flag);
+        let (score, best_move) = PureMinimax.search(&mut game, 1, Color::White, stop_flag);
 
         // At depth 1, should find one of the 20 possible moves
         let moves = game.generate_moves(Color::White);
@@ -43,7 +43,7 @@ mod minimax_tests {
         let mut game = setup_test_game("7R/8/8/8/8/1K6/8/1k6 w - - 0 1");
 
         let stop_flag = Arc::new(AtomicBool::new(false));
-        let (score, best_move) = pure_minimax_search(&mut game, 3, Color::White, stop_flag);
+        let (score, best_move) = PureMinimax.search(&mut game, 3, Color::White, stop_flag);
 
         // Should find checkmate
         assert!(
@@ -65,7 +65,7 @@ mod minimax_tests {
         let mut game = setup_test_game("7r/8/8/8/8/1k6/8/1K6 b - - 0 1");
 
         let stop_flag = Arc::new(AtomicBool::new(false));
-        let (score, best_move) = pure_minimax_search(&mut game, 3, Color::Black, stop_flag);
+        let (score, best_move) = PureMinimax.search(&mut game, 3, Color::Black, stop_flag);
 
         // Should find checkmate (negative score from black's perspective)
         assert!(
@@ -87,7 +87,7 @@ mod minimax_tests {
         let mut game = setup_test_game("k7/8/1K6/8/8/8/8/8 b - - 0 1");
 
         let stop_flag = Arc::new(AtomicBool::new(false));
-        let (score, _) = pure_minimax_search(&mut game, 1, Color::Black, stop_flag);
+        let (score, _) = PureMinimax.search(&mut game, 1, Color::Black, stop_flag);
 
         // Should recognize stalemate (score = 0)
         assert_eq!(score, 0, "Should recognize stalemate, got score: {}", score);
@@ -99,7 +99,7 @@ mod minimax_tests {
         let mut game = setup_test_game("k7/8/8/3q4/3Q4/8/8/K7 w - - 0 1");
 
         let stop_flag = Arc::new(AtomicBool::new(false));
-        let (score, best_move) = pure_minimax_search(&mut game, 2, Color::White, stop_flag);
+        let (score, best_move) = PureMinimax.search(&mut game, 2, Color::White, stop_flag);
 
         // Should prefer capturing the queen (d4xd5)
         let expected_move = game.from_uci("d4d5").expect("Should create capture move");
@@ -125,7 +125,7 @@ mod minimax_tests {
         let mut game = setup_test_game("k7/3P4/8/8/8/8/8/K7 w - - 0 1");
 
         let stop_flag = Arc::new(AtomicBool::new(false));
-        let (score, best_move) = pure_minimax_search(&mut game, 2, Color::White, stop_flag);
+        let (score, best_move) = PureMinimax.search(&mut game, 2, Color::White, stop_flag);
 
         // Should promote to queen (b7b8q)
         let promotion_move = game
@@ -153,7 +153,7 @@ mod minimax_tests {
         let mut game = setup_test_game("k7/8/8/8/8/8/2r5/KR6 w - - 0 1");
 
         let stop_flag = Arc::new(AtomicBool::new(false));
-        let (score, best_move) = pure_minimax_search(&mut game, 2, Color::White, stop_flag);
+        let (score, best_move) = PureMinimax.search(&mut game, 2, Color::White, stop_flag);
 
         // Should avoid the checkmate by moving king or blocking
         let best_move = best_move.unwrap();
@@ -176,11 +176,11 @@ mod minimax_tests {
         let stop_flag = Arc::new(AtomicBool::new(false));
         // Test that deeper search gives better (or equal) results
         let (score_depth_1, move_1) =
-            pure_minimax_search(&mut game, 1, Color::White, stop_flag.clone());
+            PureMinimax.search(&mut game, 1, Color::White, stop_flag.clone());
         let (score_depth_2, move_2) =
-            pure_minimax_search(&mut game, 2, Color::White, stop_flag.clone());
+            PureMinimax.search(&mut game, 2, Color::White, stop_flag.clone());
         let (score_depth_3, move_3) =
-            pure_minimax_search(&mut game, 3, Color::White, stop_flag.clone());
+            PureMinimax.search(&mut game, 3, Color::White, stop_flag.clone());
 
         // Deeper search should find at least as good moves
         // Note: Sometimes different depths can find different equally good moves
@@ -212,10 +212,10 @@ mod minimax_tests {
         let mut game = setup_test_game("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
         let stop_flag = Arc::new(AtomicBool::new(false));
-        let (score_white, _) = pure_minimax_search(&mut game, 2, Color::White, stop_flag.clone());
+        let (score_white, _) = PureMinimax.search(&mut game, 2, Color::White, stop_flag.clone());
 
         // Now from black's perspective (should be symmetric)
-        let (score_black, _) = pure_minimax_search(&mut game, 2, Color::Black, stop_flag.clone());
+        let (score_black, _) = PureMinimax.search(&mut game, 2, Color::Black, stop_flag.clone());
 
         // Scores should be approximately opposite (white positive, black negative)
         assert!(
@@ -232,7 +232,7 @@ mod minimax_tests {
         let mut game = setup_test_game("k7/8/8/8/8/8/1Q6/K7 w - - 0 1");
 
         let stop_flag = Arc::new(AtomicBool::new(false));
-        let (score, _) = pure_minimax_search(&mut game, 1, Color::White, stop_flag);
+        let (score, _) = PureMinimax.search(&mut game, 1, Color::White, stop_flag);
 
         // Should show significant advantage (around +900 for queen)
         assert!(
@@ -249,7 +249,7 @@ mod minimax_tests {
 
         for depth in 1..=3 {
             let (score, best_move) =
-                pure_minimax_search(&mut game, depth, Color::White, stop_flag.clone());
+                PureMinimax.search(&mut game, depth, Color::White, stop_flag.clone());
 
             // Move should be legal
             let legal_moves = game.generate_moves(Color::White);
@@ -276,7 +276,7 @@ mod minimax_tests {
         let mut game = setup_test_game(fen);
 
         let stop_flag = Arc::new(AtomicBool::new(false));
-        let (score, best_move) = pure_minimax_search(&mut game, 3, Color::Black, stop_flag);
+        let (score, best_move) = PureMinimax.search(&mut game, 3, Color::Black, stop_flag);
 
         assert!(
             score > 10000,
